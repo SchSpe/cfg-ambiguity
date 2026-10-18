@@ -1,0 +1,72 @@
+Third-party notices
+
+This project's own code is under the MIT License (see LICENSE). The
+material below is by other authors and keeps its own terms.
+
+
+1. Roskind C++ grammar, release 2.0
+
+Files: roskind/cpp5.y, roskind/cpp5.l, roskind/freegrm5.txt,
+roskind/grammar5.txt, roskind/autodoc5.txt and roskind/y.output are
+included unchanged from James A. Roskind's grammar release 2.0 (1991), as
+preserved at https://blog.robertelder.org/jim-roskind-grammar/ (see
+GRAMMAR_SOURCES.txt for checksums). roskind/grammar.json and
+roskind/grammar.cfg are translations of cpp5.y made by convert_yacc.py,
+and each repeats the notice below. The grammar workbench (run_ui.py,
+ui_server.py, ui/) and the benchmarks use this grammar.
+
+Portions Copyright (c) 1989, 1990 James A. Roskind
+
+The notice from roskind/cpp5.y, reproduced unchanged:
+
+    /* Copyright (C) 1989-1991 James A. Roskind, All rights reserved. 
+    This grammar was developed  and  written  by  James  A.  Roskind. 
+    Copying  of  this  grammar  description, as a whole, is permitted 
+    providing this notice is intact and applicable  in  all  complete 
+    copies.   Translations as a whole to other parser generator input 
+    languages  (or  grammar  description  languages)   is   permitted 
+    provided  that  this  notice is intact and applicable in all such 
+    copies,  along  with  a  disclaimer  that  the  contents  are   a 
+    translation.   The reproduction of derived text, such as modified 
+    versions of this grammar, or the output of parser generators,  is 
+    permitted,  provided  the  resulting  work includes the copyright 
+    notice "Portions Copyright (c)  1989,  1990  James  A.  Roskind". 
+    Derived products, such as compilers, translators, browsers, etc., 
+    that  use  this  grammar,  must also provide the notice "Portions 
+    Copyright  (c)  1989,  1990  James  A.  Roskind"  in   a   manner 
+    appropriate  to  the  utility,  and in keeping with copyright law 
+    (e.g.: EITHER displayed when first invoked/executed; OR displayed 
+    continuously on display terminal; OR via placement in the  object 
+    code  in  form  readable in a printout, with or near the title of 
+    the work, or at the end of the file).  No royalties, licenses  or 
+    commissions  of  any  kind are required to copy this grammar, its 
+    translations, or derivative products, when the copies are made in 
+    compliance with this notice. Persons or corporations that do make 
+    copies in compliance with this notice may charge  whatever  price 
+    is  agreeable  to  a  buyer, for such copies or derivative works. 
+    THIS GRAMMAR IS PROVIDED ``AS IS'' AND  WITHOUT  ANY  EXPRESS  OR 
+    IMPLIED  WARRANTIES,  INCLUDING,  WITHOUT LIMITATION, THE IMPLIED 
+    WARRANTIES  OF  MERCHANTABILITY  AND  FITNESS  FOR  A  PARTICULAR 
+    PURPOSE.
+
+    James A. Roskind
+    Independent Consultant
+    516 Latania Palm Drive
+    Indialantic FL, 32903
+    (407)729-4348
+    jar@hq.ileaf.com
+
+
+    ---end of copyright notice---
+
+roskind/cpp5.l carries its own notice of the same form, which is retained in
+that file.
+
+
+2. Cfront 3.0.3 grammar (not included)
+
+convert_yacc.py, test_grammar_io.py and ui_server.py can use the grammar of
+AT&T Cfront release 3.0.3 (cfront/gram.y). That file is AT&T proprietary
+source code that the Computer History Museum posts for historical research
+purposes only, so neither it nor any translation of it is distributed here.
+README.md explains how to fetch it for local use.

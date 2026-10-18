@@ -1,0 +1,3311 @@
+Copyright (C) 1991, James  A.   Roskind,  All  rights  reserved. 
+Abstracting  with credit is permitted.  The contents of this file may 
+be reproduced electronically, or in printed  form,  IN  ITS  ENTIRETY 
+with  no  changes, providing that this copyright notice is intact and 
+applicable in the copy.  No other copying is  permitted  without  the 
+expressed written consent of the author.
+
+FILENAME: AUTODOC5.TXT
+Last modified: 7/4/91
+
+
+Written by:
+
+James Roskind
+516 Latania Palm Drive
+Indialantic, FL 32903-3816
+(407)729-4348   or (617)290-4990 x5570
+jar@hq.ileaf.com
+
+
+WARNING: This file contains many lines that are much wider than 80
+columns.
+
+
+
+ACKNOWLEDGEMENT
+
+Without the wonderful work of  Bob  Corbett,  and  his  public  domain 
+program  "Berkeley  Yacc", much of the experimentation leading to this 
+automatic documentation of yacc grammars could not have been done.  As 
+acknowledged by Corbett, byacc is:
+
+"based on the excellent algorithm  for  computing  LALR(1)  lookaheads 
+developed  by  Tom  Pennello  and  Frank  DeRemer.   The  algorithm is 
+described in their almost impenetrable article in TOPLAS 4,4."
+
+Pennello and DeRemer's paper, which  I  believe  to  be  *excellently* 
+written,  was  also  pivotal  to the production of the explanations of 
+conflicts.  The paper's methods are basically taken and  applied.   In 
+addition,  Tom  Pennello  (MetaWare  Incorporated, Santa Cruz CA) took 
+pity on my efforts to provide a standard syntax for C++, and donated a 
+copy of a portion of MetaWare's incredible "Translator Writing System" 
+(the parser generator portion) to assist me.   Certainly  seeing  what 
+could  be done added greatly to my efforts and confidence that grammar 
+conflict analysis was basically automatable.
+
+
+
+OVERVIEW
+
+I have created a set of tools to analyze and  document  grammars,  and 
+the  output  of that file (when processing my YACCable C++ grammar) is 
+the enclosed "y.ouput" file.  This  paper  describes  the  information 
+included  in  the  attached  "y.output" file, which provides extensive 
+"machine generated documentation" for the YACCable  C++  grammar.   In 
+addition,  it  motivates  the  presentation  of  such  information  by 
+discussing a  number  of  subtle  distinctions  between  LR  and  LALR 
+parsers, with a special focus on parsing conflicts.
+
+If  you hate to read human-written-documentation (such as this paper), 
+then jump right in and  look  at  the  "y.output"  file  that  I  have 
+included  in  this  release.  The sections each begin with a control L 
+(^L), and can easily be  located  by  a  text  editor.   Most  of  the 
+sections  of  the  y.output  are  rather  self  explanatory, and their 
+usefulness is  rather  obvious.   Note  however,  that  this  document 
+contains  many interesting discussions of conflicts and resolutions in 
+LALR parser generators, and it may be worth reading for  that  content 
+alone.
+
+If you are out to carefully understand every conflict still present in 
+my  C++  grammar, then you will probably have to read at least some of 
+the sections of this document that pertain to conflict  analysis.   If 
+you  are  really  hardy, you could probably decode my conventions, but 
+spoon feeding via this document is probably the easiest approach.   As 
+it  is,  the concepts contained in this document (at least with regard 
+to conflict analysis) are generally far from trivial.
+
+The good  news  is  that  a  vast  amount  of  the  machine  generated 
+documentation  in  "y.output"  is targeted at making it easier to read 
+and understand the  grammar,  and  this  information  is  *completely* 
+independent  of  the  conflict analysis sections.  Feel free to ignore 
+sections of the automatic documentation that are  confusing,  just  as 
+you  should  feel  free  to  skip  sections of this paper that are too 
+simplistic (or too confusing).  If all you want  to  do  is  read  and 
+understand  the  grammar, then look at the original grammar (which has 
+comments), as well as the "Symbol and Grammar Cross  Reference"  found 
+in  "y.output." If all you want to do is read about automated analysis 
+of conflicts, and LR vs LALR subtleties, then you  should  proceed  to 
+Chapter 3.
+
+Comments  suggesting sections of this document that should be expanded 
+upon, or clarified, are *more* than welcome.   Similarly,  suggestions 
+for  expanding  the analysis that is provided in the y.output file are 
+also welcome.  A list of things that I look forward to  doing  in  the 
+future are provided at the end of this document (see chapter 4).
+
+Finally, as a disclaimer: I don't have a PhD in parser generators, and 
+I  haven't  dedicated my life to writing grammars.  I may be incorrect 
+in my evaluation of  how  parsers  work,  and  how  parser  generators 
+generate.   To date, my views have proved useful (i.e., I have written 
+several grammars).  If my philosophizing about the causes and cures of 
+conflicts is off base, and you *have* dedicated your life  to  writing 
+grammars,  or  have  received  multiple  PhD's  in  parser  generation 
+technology, please send in the corrective argument.  I would  like  to 
+make  this  document  better.   Similarly,  if what I say is obviously 
+wrong to even your 2 month old child, I would also like to hear  about 
+it (but you can write on behalf of your child).  This requests extends 
+all the way to typos and English-grammar corrections.
+
+
+	TABLE OF CONTENTS
+
+1 INTRODUCTION TO the YACC CROSS REFERENCE SYSTEM
+
+2 DETAILED DISCUSSION OF TABLES
+2.1 Reference Grammar
+2.2 Alphabetized Grammar
+2.3 Sample Expansions for the Non-terminal Tokens
+2.4 Summary Descriptions of the Terminal Tokens
+2.5 Symbol and Grammar Cross Reference for the Tokens
+2.6 Sample Stack Context and Accessing Sentences for each State
+2.7 Concise list of Conflicts
+2.8 Canonical Description of Conflicts
+2.9 Verbose listing of state transitions
+2.10 Explanations for all reductions suggested in conflicts
+
+3 CONFLICT ANALYSIS Via the YACC CROSS REFERENCE SYSTEM
+3.1 LR(1) Parsing
+3.1.1 Ambiguous grammars
+3.1.2 LR(1) ambiguous grammars
+3.1.2.1 Removing LR(1) conflicts from unambiguous grammars
+3.1.3 LALR-only ambiguous grammars, and LALR-only conflict components
+3.1.3.1 LR parsers vs parsers generated by LALR parser generators
+3.1.3.2 Sample LALR-only ambiguous grammar
+3.1.3.2.1 Analysis of the sample LALR-only ambiguous grammar
+3.1.3.2.2 Sample Removal of LALR-only conflict via state splitting
+3.1.3.2.3 Sample Removal of LALR-only conflict via grammar augmentation
+3.2 Interpreting Conflict Analysis Documentation
+3.2.1 Conflict Reduction Demonstrations
+3.2.2 Summarizing Reduction Contexts
+3.2.3 Automatic LALR-only Conflict Summaries
+3.2.3.1 Direct Pruning of LR conflicts From the Context Tree
+3.2.3.2 Pruning of LR conflicts From the Context Tree using State Information
+3.2.3.3 LALR-only conflicts With No Consequences
+3.2.3.4 Significant LALR-only conflicts
+3.2.4 Augmentation Proposals to Remove LALR-only Conflicts
+
+4  FUTURE ENHANCEMENTS
+
+A.1   Appendix   A:  Sample  LALR-only  ambiguous  grammar:  automatic 
+documentation
+
+
+
+
+
+
+1 INTRODUCTION TO the YACC CROSS REFERENCE SYSTEM
+
+
+The automatically generated documentation  provided  for  the  grammar 
+consists of 8 parts:
+
+	Reference Grammar
+
+	Alphabetized Grammar
+
+	Sample Expansions for the Non-terminal Tokens
+
+	Summary Descriptions of the Terminal Tokens
+
+	Symbol and Grammar Cross Reference for the Tokens
+
+	Sample Stack Context and Accessing Sentences for each State
+
+	Concise list of Conflicts
+
+	Canonical Description of Conflicts
+
+	Verbose listing of state transitions
+
+	Explanations for all reductions suggested in conflicts
+
+
+Each  section  is  meant  to aid in reading, understanding and using a 
+grammar.   This  introduction  provides  a  brief  overview,  and  the 
+sections  that  follow describe in more detail the contents and use of 
+each of the automatically generated sections.
+
+The first section is the "Reference Grammar."  This  section  contains 
+the  grammar  as it was entered by the user, with intermediate actions 
+expanded to $n  non-terminals.   This  is  basically  a  de-commented, 
+printout of the grammar, with each production numbered.
+
+The  most obviously useful reading tool is the "Alphabetized Grammar." 
+For most folks that have had to look at a grammar,  one  of  the  most 
+painful  aspects  is trying to find out where a non-terminal token was 
+defined (If the reader is unlucky,  then  the  non-terminal  may  have 
+several  derivation  rules in different sections of the grammar, and a 
+real nightmare ensues).  This section gathers together all rules  that 
+have a common left-hand-side, and lists them alphabetically ordered by 
+the  left  hand side.  Within each group of productions, the rules are 
+also alphabetized symbol by symbol.  Without  this  reference,  it  is 
+basically impossible to "read" a large grammar without a text editor.
+
+A second problem that presents itself when trying to read a grammar is 
+trying  to  figure  out what a non-terminal name really means.  If the 
+author worked very hard, and the reader is in the same frame of  mind, 
+then the names may have obvious meanings.  Rarely is this consistently 
+true.   The  "Sample  Expansions  for the Non-terminal Tokens" section 
+provides a minimal length sample sequence of terminal-tokens that each 
+non-terminal could expand to.  Such a list can  quickly  give  insight 
+into  what  the  author  had in mind for each non-terminal name.  This 
+list is also so short, that it is easy to print, or view in  a  single 
+window.
+
+Another  question  that  comes  up  is  what  exactly are the terminal 
+tokens?  If a grammar is written using some nice convention,  such  as 
+all terminal tokens are capitalized, then this is not so difficult. On 
+the  other  hand,  even  if  such  a convention is followed, there are 
+several other questions such as the number  of  times  the  token  was 
+used,  what  its  precedence  and  associativity was set to, etc.  The 
+"Summary Descriptions  of  the  Terminal  Tokens"  provides  all  this 
+information at a glance.
+
+Having  provided  all the basic reading tools, the "Symbol and Grammar 
+Cross Reference for the Tokens" ties it all together.  Basically  this 
+is  a complete alphabetized grammar, with sample derivations for every 
+rule.  As you are reading a grammar,  this  integrated  sample/grammar 
+listing  greatly  reduces  the  burden of tracking down why a specific 
+rule was added to the grammar,  and  what  it  did  to  fill  out  the 
+language.   You could always just read (the more compact) alphabetized 
+grammar, and refer to the symbol expansions  (listed  elsewhere),  but 
+this  integrated  format  provides  a  concise view of each production 
+(including a sample terminal sentence for every rule).
+
+Reading a grammar is not all there is to  producing  and  debugging  a 
+grammar.   The  "Sample Stack Context and Accessing Sentences for each 
+State" section provides the first  step  at  understanding  what  each 
+state  in  the  parser  really "means." Rather than providing just the 
+classical "verbose output", which shows local state  information  (and 
+is  provided in the next section), this listing provides a global view 
+of each state by  specifying  the  context  in  which  each  state  is 
+entered.  Historically,  this  information  was  gleamed  by painfully 
+walking backwards though the verbose output. In this concise  listing, 
+most  of  the  state information is available for easy perusal.  As it 
+turns out, because of the other  integrated  information,  this  table 
+typically  finds  little  use,  as  does the classical verbose-listing 
+provided  by  a  yacc  (provided  in  a  later   section).    Critical 
+information  related to conflict states is extracted and used in other 
+tables automatically.
+
+When developing  a  grammar,  the  most  significant  section  of  the 
+classical  verbose listing is the core description of the states which 
+*have* conflicts.  Rather than having  to  page  through  a  typically 
+massive  verbose-listing,  the  state  descriptions  for each conflict 
+state is shown  in  the  "Concise  list  of  Conflicts."  Here  again, 
+although  this  was  historically  the  starting  point  for  conflict 
+analysis, the usefulness of this information is greatly reduced by the 
+other integrated tables and listings.  For a typical yacc hacker, this 
+listing will be a concise, familiar, and welcome sight.
+
+The next table is the "Canonical Description of Conflicts." The  major 
+use  of  this table is to a grammar developer (i.e., author), who must 
+compare conflicts in one version  of  a  grammar  to  those  found  in 
+another.   As  the  grammar  is modified, the state numbering can vary 
+wildly, and required regressive comparisons were historically  tedious 
+and  delicate.   Some  parser generators have even been satisfied with 
+listing the counts of conflicts, and encouraging  the  user  to  "fear 
+not"  when  the  number  hasn't changed (re: the "%expect" construct). 
+This canonical list  can  be  used  to  automatically  identify  which 
+conflict has been added or removed by any change, and is generally not 
+effected  by  restructuring or rule additions in the grammar.  A minor 
+secondary use of this brief description format  is  to  show  complete 
+sentences  (programs)  that  will induce the conflict scenarios. (Note 
+that although the conflict states are quickly defined in this section, 
+the  more  meaningful  "conflict  contexts"  are  analyzed  in   later 
+section).
+
+No  automatically generated documentation for a parser generator would 
+be complete  without  the  "Verbose  listing  of  state  transitions." 
+Historically,  this  was  all the grammar developer (using traditional 
+yacc) was given to evaluate  conflicts.   In  some  sense,  *all*  the 
+information  is  present  in this set of tables, but the difficulty of 
+deciphering it is known  near  and  far.   When  it  is  necessary  to 
+understand  the  exact  working  of  the  parser, this table is almost 
+irreplaceable.  With a graphical parse  tree  generator  (such  as  is 
+provided elsewhere in this package), most users will find it easier to 
+run  the  tree  generator  and observe the results, than it is to walk 
+through the yacc tables by hand.  If the grammar describes "bing  bing 
+bong"  (see  the  original  papers describing yacc), then this verbose 
+output is sufficient.  If the grammar describes a real  language,  get 
+the graphical parse tree generator working :-).
+
+Finally,  what  all  grammar hackers want in life is an explanation of 
+the conflicts in a grammar.  The section  entitled  "Explanations  for 
+all   reductions   suggested  in  conflicts"  tries  to  provide  this 
+information in a clear and concise form.  My interactive yacc  product 
+allows  the  user  to  selectively view explanations of conflicts, but 
+this verbose table provided a complete listing.  The amount of data in 
+this table is generally more than should be printed,  but  it  can  be 
+examined  relatively  quickly  using an editor.  For every state where 
+there is an alternative to performing a reduction, each  reduction  is 
+listed,  and  the contexts in which the reduction can be performed are 
+exhaustively described.  At the end of  each  section  describing  the 
+conflict  in  a state, a summary is produced and analyzed.  One lovely 
+consequence of this section is an understanding of LALR-only conflicts 
+(conflicts that would not be a problem for an LR parser), and a  proof 
+of their presence or absence from the grammar.  This table is critical 
+to doing any conflict analysis, and can reduce many hours into moments 
+when trying to understand the cause and significance of a conflict.
+
+
+2 DETAILED DISCUSSION OF TABLES
+
+
+2.1 Reference Grammar
+
+The  reference  grammar  is, as stated earlier, a complete printout of 
+the grammar, in exactly the order provided by the author.   Note  that 
+every  rule  is  numbered  for reference, and all intermediate actions 
+have been expanded into yacc generated non-terminals.  For example, an 
+original entry entry in the grammar such as:
+
+bit_field_declarator:
+        bit_field_identifier_declarator
+        | TYPEDEFname {} ':' constant_expression
+        ;
+
+is printed as:
+
+bit_field_declarator
+	: bit_field_identifier_declarator   /* (379) */
+	;
+
+$$12
+	:   /* (380) */
+	;
+
+bit_field_declarator
+	: TYPEDEFname $$12 ':' constant_expression   /* (381) */
+	;
+
+Note that the yacc generated non-terminal $$12 is used in rule  number 
+381,  in  the  place  of  the intermediate action "{}" in the original 
+grammar.  Also note that the null derivation for rule 380  was  placed 
+directly  before the user supplied rule 381, which had the side effect 
+of splitting the list of derivations for  "bit_field_declarator"  into 
+two groups.
+
+All  rule  listings  are carefully constructed to be ready to serve as 
+input to yacc, and hence this rule listing can actually be used  as  a 
+"pretty  print"  of the original grammar.  The one restriction is that 
+"$$12" is typically not a valid identifier  for  yacc,  and  hence  an 
+editor  would  have to do a global replace of "$$" with something like 
+"dollar_dollar" before trying to yacc this "pretty print" form.
+
+Comments and action code segments are omitted from this printout,  but 
+the result is a more concise and readable output.
+
+
+2.2 Alphabetized Grammar
+
+The  alphabetized  grammar  is  basically  in  the  same format as the 
+reference grammar.  There are two major differences: 1)  the  listings 
+are alphabetized, and hence all derivations for a given left-hand-side 
+are  collected together; 2) Intermediate actions are printed in a more 
+natural format, and yacc generated intermediate non-terminals are  not 
+listed.
+
+To  demonstrate the distinction with regard to non-terminals, consider 
+the author supplied rule:
+
+bit_field_declarator:
+        bit_field_identifier_declarator
+        | TYPEDEFname {} ':' constant_expression
+        ;
+
+The derivations for "bit_field_declarator" are listed as a group:
+
+bit_field_declarator
+	: bit_field_identifier_declarator   /* (379) */
+	| TYPEDEFname { /* $$12 */ } ':' constant_expression   /* (381) */
+	;
+
+Notice that the  intermediate  action  is  presented  as  a  bracketed 
+comment  "{  /*  $$12  */  }",  rather than simply a yacc non-terminal 
+"$$12." This offers a slight advantage  in  readability  to  a  novice 
+reader,  and  makes  the  alphabetized  grammar  format acceptable for 
+direct input to yacc.  Hence this form can even more easily be used as 
+a pretty print formatter for a yacc grammar.  Also notice  that  since 
+the  grammar  is  alphabetized,  all  the  null  derivations  for yacc 
+generated non-terminals $$n would otherwise collect at  the  start  of 
+the  grammar  listing,  and provide no real information (it is already 
+known that all these $$n productions are null derivations).
+
+With regard to alphabetizing within a group of derivations, note  that 
+rules  are  also  sorted  by their right-hand-side entries, to make it 
+easier to locate a specific rule.  For example, the derivations in the 
+original grammar:
+
+basic_type_name:
+        INT
+        | CHAR
+        | SHORT
+        | LONG
+        | FLOAT
+        | DOUBLE
+        | SIGNED
+        | UNSIGNED
+        | VOID
+        ;
+
+are listed alphabetically:
+
+basic_type_name
+	: CHAR   /* (285) */
+	| DOUBLE   /* (289) */
+	| FLOAT   /* (288) */
+	| INT   /* (284) */
+	| LONG   /* (287) */
+	| SHORT   /* (286) */
+	| SIGNED   /* (290) */
+	| UNSIGNED   /* (291) */
+	| VOID   /* (292) */
+	;
+
+Caution should be taken when using this output as an input  for  yacc. 
+Note  that  some  of  the  disambiguating  rules  decide based on rule 
+ordering how to resolve a conflict.  Hence, "alphabetizing" a  grammar 
+may disrupt this process.
+
+
+2.3 Sample Expansions for the Non-terminal Tokens
+
+This  section presents the shortest series of terminal tokens that can 
+possibly be derived from each non-terminal.  It also gives a count  of 
+the  number  of  user  defined  non-terminals  (note that yacc defined 
+non-terminals are not included in this count).
+
+For example, some entries in a typical table are:
+
+ Name                                              Usage count   Minimal expansion
+
+ abstract_declarator                                   17        '*'
+ access_specifier                                       3        PUBLIC
+ ...                                                  ...        ...
+ sue_declaration_specifier                              4        EXTERN STRUCT IDENTIFIER
+ ...
+
+One column presents the number of times the non-terminal  is  used  in 
+the grammar (re: usage count), while the far right column presents the 
+list  of  terminal  tokens that could be derived from the non-terminal 
+listed on the left.  Specifically, we can tell from  this  table  that 
+"abstract_declarator"  is  used  17  times in the grammar, and that it 
+"always derives something" (i.e., it never derives epsilon,  the  null 
+string).   Specifically,  we  can  tell  that the shortest sequence of 
+terminal tokens that it does derive has 1 terminal in it.  An  example 
+of  such  a sentence that can be derived from "abstract_declarator" is 
+the sequence "'*'" .  An interested reader could, by  looking  at  the 
+grammar, find the critical rules that prove this fact:
+
+		abstract_declarator : unary_abstract_declarator (618)
+		unary_abstract_declarator : asterisk_or_ampersand (626)
+		asterisk_or_ampersand : '*' (634)
+
+The "Symbol and Grammar Cross Reference for the Tokens" described in a 
+later  section,  makes  it trivial to find such series, but the easier 
+thing is to assume that some derivation exists, and that is why it  is 
+listed.
+
+The  "minimal" expansion is generally not unique, but there is never a 
+shorter expansion.  The selection of a unique expansion when there  is 
+a  "tie" for a length is based on using the expansion that is provided 
+by the lowest numbered rule.
+
+If it is possible to derive the  empty  sentence  (epsilon)  from  the 
+non-terminal,  then  the  minimal  expansion  area  is  left  empty to 
+demonstrate this fact.
+
+
+2.4 Summary Descriptions of the Terminal Tokens
+
+This section lists alphabetically,  all  the  terminal  tokens  (i.e., 
+tokens that are never found on the left-hand-side of a production, and 
+are  typically  supplied  directly  be  the lexical analyzer.  Typical 
+entries look like:
+
+ Name                Usage Count  Value  Precedence  Associativity
+
+ '!'                      2         33       0            -          
+ '%'                      2         37       0            -          
+ '&'                      3         38       0            -          
+
+As with the non-terminals, the first column  presents  the  number  of 
+times each terminal was used in the grammar (usage count).  The number 
+shown  in the next column is the value that is provided in the y.tab.h 
+file for communication with the lexer.   Typically  the  y.tab.h  file 
+will  show  this  list  of  terminals ordered by their value, which is 
+determined primarily by their order of declaration to yacc.
+
+If the %prec directive was used in the grammar, then individual tokens 
+would acquire a numerical precedence starting with 1,  and  increasing 
+with  each  new  directive.  Precedence is one of several methods that 
+yacc employs to disambiguate conflicts.
+
+The  column  titled  "Associativity"  has  entries  that  are   either 
+undefined  ("-"  as  shown), or "Right", "Left", or "Non" (the last of 
+which signifies "Non-associative").  Tokens acquire  setting  of  this 
+associative   status  when  %right,  %left,  and  %nonassoc  declaring 
+directives are encountered in the grammar.
+
+
+2.5 Symbol and Grammar Cross Reference for the Tokens
+
+As mentioned in the  introduction,  the  cross  reference  table  ties 
+together  almost  all  of  the  other tables of information. The cross 
+reference is  organized  exactly  as  was  the  alphabetically  listed 
+grammar,  except there is additional information about each token, and 
+each rule.  In  addition,  the  non-terminals  are  merged  into  this 
+alphabetized list, and information is provided about them as well.
+
+A typical entry for a terminal symbol in this table would look like:
+
+ AUTO
+	TERMINAL, used in 1 rule  value = <275>  re: storage_class : AUTO (278)
+
+The  above text indicates that the token "AUTO" is indeed a "TERMINAL" 
+token, and the usage count is given as "1".  Whenever the usage  count 
+is  exactly 1 (as it is in this case), the rule that uses the token is 
+presented at the end of the line:
+
+	re: storage_class : AUTO (278)
+
+Also note that the value is presented here as being "275".   If  there 
+had  been  any precedence or associativity settings for this terminal, 
+they would also have been listed.  As a result, this table has all the 
+information about terminals that were provided in the earlier section, 
+as well as a bit more. (i.e., which rule it is used in when it is only 
+used  once).   They  distinction  is  that  in  this  table  they  are 
+alphabetically interspersed with the non-terminals.
+
+A  typical  entry  for  a non-terminal symbol in this table would look 
+like:
+
+ abstract_declarator
+	NON-TERMINAL, used in 17 rules
+		abstract_declarator : postfix_abstract_declarator (619)
+			 '(' '*' ')'
+
+		abstract_declarator : postfixing_abstract_declarator (620)
+			 '[' ']'
+
+		abstract_declarator : unary_abstract_declarator (618)
+			 '*'
+
+
+The first line indicates  that  the  symbol  "abstract_declarator"  is 
+being  described,  and  the  second  line  asserts that it is indeed a 
+non-terminal.  Here again the symbol's usage count is  presented,  and 
+if  it  were only used in a single rule, that rule would be listed (as 
+was done for terminal symbols).
+
+After this overview, all of the rules that derive the non-terminal are 
+listed exactly in the same order as was provided for the  alphabetized 
+grammar.   The  line  after each rule shows the minimal terminal-token 
+sequence that the right-hand-side of each rule  can  ever  expand  to. 
+Hence,   looking   at   the   above   example,   we   see   that  when 
+"abstract_declarator" is derived from rule 619, then it would have  at 
+least 3 tokens, and one example is the sequence "'(' '*' ')'".  Notice 
+that it is quickly apparent that the shortest sequence possible for an 
+abstract_declarator is produced via rule 618, and is simply "'*'".
+
+As was discussed in the section on minimal expansions for non-terminal 
+symbols,  these  sequences  are  not  generally  unique. In fact, some 
+exploration would reveal  that  "unary_abstract_declarator"  can  also 
+derive  the  1  long terminal sequence "'&'" as well as "'*'" which is 
+shown above.  However, the length of the samples sentences are  always 
+as short (in terms of terminal token count) as possible.
+
+For   reading   grammars,  this  generic  minimal  expansion  view  of 
+non-terminals and rules is  critical  to  understanding  what  a  rule 
+"really" does, and what a symbol "really" can mean.  If you are trying 
+to   read  a  new  grammar,  you  are  advised  to  either  read  this 
+cross-reference first, or have it  handy  as  you  read  the  author's 
+commented version of the grammar.  Having this information on hand can 
+save  quite  a  bit  of  time  trying  to explore all the nuances of a 
+grammar, and identifying what each non-terminal name stands for.
+
+
+2.6 Sample Stack Context and Accessing Sentences for each State
+
+States in an LR parser are entered from prior states based on the look 
+ahead symbol and (typically) a parsing table (this is just  what  your 
+run-of-the-mill  table  driven LR parser does).  However, it is not in 
+general possible to transition from any state to  every  other  state, 
+and  the table defines which transitions are possible.  Reversing this 
+process, when the parser is in any  state,  there  are  only  a  small 
+fraction  of  the  total  states  that  the  parser could have been in 
+immediately before entering  this  state.   This  "history"  of  prior 
+states,  which  is  generally  represented as a push-down-automaton (a 
+stack of states), provides context information for each state.
+
+One very interesting question (which is answered  by  this  table)  is 
+what  is the smallest yacc stack that can reach each state?  To put it 
+another way, what  is  the  shorted  list  of  transitions  that  will 
+progress  from  the  start  state (in which the stack is empty) to any 
+specific state in the parser?  As pointed out, state 0  (the  internal 
+start  state)  can  only  directly transition to a small subset of the 
+possible states.  Each of those states can then only transition  to  a 
+small  number  of  possible  states,  etc.  Eventually, all states are 
+reached, and there emerges a "shortest path" from the start  state  to 
+each state.
+
+The   significance   of  these  "shortest  paths"  is  that  for  each 
+transition, a corresponding symbol is "pushed" onto  a  symbol  stack. 
+Hence for any path to a given state, the stack can identify a lists of 
+tokens  (terminals  and  non-terminals)  that  have been "seen" as the 
+parser moved into the state in question.  Since we know  the  shortest 
+derivation  for every symbol (it was presented in an earlier table for 
+all non-terminals, and terminals are  "their  own"  shortest  terminal 
+expansion),  we  can  translate a minimal path into a minimal (in some 
+sense) series of terminal-tokens that should carry us from  the  start 
+state to any state in the parser.  For any state, a series of terminal 
+tokens  that  carries  the  parser  into  a  target state is called an 
+"accessing sentence" for that state.  This table provides  a  list  of 
+minimal stack contexts, and translates them into accessing sentences.
+
+A typical entry in the table look like:
+
+
+state 834: 	1 incoming, 1 outgoing states; entering via state 655:
+	Minimal stack:  0 1 52 241 423 ! 655 834
+	symbols:	 $start translation_unit identifier_declarator '{' statement_list_opt ! GOTO label
+	sentence:	 $start IDENTIFIER '{' ! GOTO IDENTIFIER
+
+
+The  above  entry  indicates  that there is exactly one state that can 
+transition to this state ("1 incoming"), and there is only  one  state 
+that  this state can transition to ("1 outgoing state").  Note that in 
+addition to transitioning, each state has the option of "reducing" the 
+stack back to a prior state, so there are no "dead ends."
+
+Typically there are several states from which to enter a given  state, 
+and  the  "minimal  stack"  must  be constructed from one of them.  In 
+general, the table will select one of them as leading to  the  optimal 
+(i.e., minimal stack size) context, and that one will be listed at the 
+end  of  the  first  line.   In  this case, there is only "1 incoming" 
+state, and that is state 655.  So we see that every stack context  for 
+state 831 contains state 655 directly beneath it.
+
+The  second  line  contains  the  list  of states that are found to be 
+minimal in depth, and yet transition  from  state  0  to  this  target 
+state.   Note  that amidst the list of 7 states ("0 1 52 241 423 ! 654 
+831") is an exclamation mark.  This mark indicates the point at  which 
+the  automated documentation system had several alternatives for prior 
+states, and it chose one of them.  Hence we can see in another  format 
+that  given  state  831  is  atop  the stack, that state 655 *must* be 
+beneath it.  In contrast, state 423 is *not* the only  possible  state 
+beneath  that  state  655,  and so the "!" indicates that a choice was 
+made.
+
+Given the minimal stack provided on the second  line,  each  of  these 
+states  has  a  symbol associated with it.  Specifically, state 0 (the 
+start state) transitions to state 1 after seeing a  "translation_unit" 
+(the  first  significant  entry on line three.  State 1 transitions to 
+state 52 after seeing an "identifier_declarator" (the  next  entry  on 
+line  three).   State  52 transitions to state 241 after seeing "'{'". 
+etc.  Hence we see that line 3 contains the series of symbols that can 
+minimally transition from state 0 to state 831.
+
+Finally. we can list the minimal expansion for  each  of  the  symbols 
+shown  on  line  three.   All  sentences  begin with $start, and so we 
+initially have only that:
+
+	sentence:	 $start
+
+Since "translation_unit" has a minimal derivation of the null  string, 
+we continue by recording only the start token on line four:
+
+	sentence:	 $start
+
+Next  we note that "identifier_declarator" has a minimal derivation of 
+"IDENTIFIER", and so we list that:
+
+	sentence:	 $start IDENTIFIER 
+
+Next we note that "'{'" is a terminal,  and  hence  has  itself  as  a 
+minimal expansion, so we list:
+
+	sentence:	 $start IDENTIFIER '{' 
+
+Next  we  examine  "statement_list_opt"  and  find  that it has a null 
+expansion, and hence nothing is added.  However, since there is a  "!" 
+to  the right of "statement_list_opt", we can record that and make the 
+connection between the two lists more apparent:
+
+	sentence:	 $start IDENTIFIER '{' ! 
+
+Continuing with line three we see that "GOTO" is a terminal, and hence 
+is its own minimal expansion, so we add it to our sentence:
+
+	sentence:	 $start IDENTIFIER '{' ! GOTO 
+
+Finally, we examine the last  symbol  on  line  three,  which  is  the 
+non-terminal   "label".   Since  label  has  a  minimal  expansion  of 
+"IDENTIFIER", we  can  add  that,  and  form  our  complete  accessing 
+sentence:
+
+	sentence:	 $start IDENTIFIER '{' ! GOTO IDENTIFIER
+
+So  we  see  that state 831 can typically be reached (assuming all the 
+reductions are really usable) by entering the program prefix:
+
+	IDENTIFIER '{' GOTO IDENTIFIER
+
+Translating this into a typical program:
+
+	foo { goto loop ....
+
+A bit of thought about this reveals that state 831 has a context which 
+is typically inside of a function, and just after a  "goto  name"  has 
+been  seen.   If  you wonder what "foo" is, it represents the function 
+name.  The reason why a more common fragment didn't emerge such as:
+
+	main ( ) { goto loop
+
+is that "main ( )" (i.e., "IDENTIFIER '(' ')'")  is  another  possible 
+"identifier_declarator",  but  it  wasn't  as  short  as the one token 
+sample "IDENTIFIER".   The  syntax  does  not  require  the  "function 
+returning modifier, as this is a constraint, and not a syntax issue.
+
+So  we see that by examining the entries in this table, we can quickly 
+find a sample accessing sentence for any state, and we are spared  the 
+time  of  searching  and  groping  for  expansions and contexts in the 
+standard verbose output of yacc.   These  sample  sentences  are  most 
+useful  when we are doing conflict analysis, and we need to understand 
+how we reached a state, wherein a problem emerges.
+
+
+2.7 Concise list of Conflicts
+
+This section contains nothing more than a direct  subset  of  what  is 
+provided  in  a  standard yacc verbose output.  Specifically, for each 
+state in which a  conflict  is  identified,  the  conflict(s)  is(are) 
+printed,  and the item set that defines that LR0 state is printed.  By 
+examining the item set (and looking for the "." which shows where  the 
+non-deterministic  parser  is currently processing each of the rules), 
+you can generally see a bit of local information about the context  of 
+a  conflict.   Unfortunately,  since  the  state  information  is very 
+localized (never more than the length of a rule's right hand side), it 
+is generally very difficult to see under what conditions this state is 
+really used.  If you are from the old school,  and  want  to  see  the 
+conflicts  states,  this  listing will give you exactly what you would 
+otherwise search for with a text editor (in the old  y.output  verbose 
+listings).
+
+If  you  choose to analyze the conflicts by hand, you will need to run 
+the parser forward and backwards to identify conflicts, and  you  will 
+need  the  entire  verbose  output.   For  quick  scanning (old school 
+method), this concise listing is quite useful.
+
+
+2.8 Canonical Description of Conflicts
+
+As was mentioned, for each state there is a minimal state stack access 
+to that state, and a corresponding accessing sentence for that  state. 
+These accessing sentences are listed in an earlier table.  In the case 
+of  conflicts,  small  modifications  to  the  grammar  generally move 
+conflicts around (i.e., change their state numbers dramatically).   In 
+contrast, the accessing sentence for a state that was not involved (or 
+insignificantly involved) in a grammar modification will generally not 
+change.   This  section lists the conflicts, not based on their "state 
+number", but rather based on  their  accessing  sentence.   A  typical 
+entry looks like:
+
+state 1105:
+	Canonical Conflict Access:  STRUCT IDENTIFIER '{' TYPEDEFname '(' TYPEDEFname ')'  .  ';'    (2 reductions)
+
+The  critical  line  "Canonical  Conflict  Access:  ..."  contains the 
+minimal accessing sentence  "STRUCT  IDENTIFIER  '{'  TYPEDEFname  '(' 
+TYPEDEFname  ')'",  followed  by a dot ".", followed by the token that 
+induces the conflict "';'", followed by a description of the conflict.
+
+Note that an effort was made to *not* list the rules or  rule  numbers 
+that  are  involved in the conflict.  Since there are no rule numbers, 
+reordering of the grammar will typically not have any effect  on  this 
+description  of  the  state.   In  addition,  the  fact that there are 
+exactly "(2 reductions)" as options indicates that there is  a  single 
+"reduce/reduce"  conflict.   In  some  instances  there  are 3 or more 
+possible reductions rule choices, and the note indicating  the  number 
+of such choices carries quite a bit of information.
+
+Typically  a  user extracts all the lines in the description file that 
+contain the novel phrases "Canonical Conflict Access:"  (using  "grep" 
+or similar), sorts the list, and the compares (via "diff) this list to 
+what was provided by an earlier version of the grammar.  Generally, if 
+there is a change in the conflict count or context for a conflict, the 
+changed conflict(s) will become instantly visible to the author. Using 
+this as a tool allows for a very rapid investigation of the results of 
+modifying  a grammar which has conflicts, and monitoring the impact of 
+such changes.
+
+Note that this canonical description is in theory "not perfect." Based 
+on experience with grammars which do have conflicts, it  is  extremely 
+accurate in its differentiation.
+
+
+2.9 Verbose listing of state transitions
+
+These  listings  are exactly what a classical verbose output from yacc 
+is defined  to  produce.   Consult  standard  yacc  documentation  for 
+details  on  how  to  read  the information in these tables.  The most 
+typical use of these tables is to "play computer", and see the  parser 
+working.   As  mentioned earlier, the tool that constructs a graphical 
+parse tree is generally far more adept at  doing  this,  and  is  much 
+easier to use.
+
+I  will  admit  that  the insight gained by a novice grammar writer by 
+walking through the verbose tables is  irreplaceable.   Basically,  if 
+you  can't  walk through the table performing a parse (with a piece of 
+paper on hand to record the yacc stack), and  you  want  to  learn  to 
+analyze  conflicts,  then  you should learn to use these tables.  Once 
+you know how to use these tables, you will know how  a  "Deterministic 
+Push Down Automaton" works, you will be able to follow arguments about 
+ambiguities, and you should stop reading these tables :-).
+
+
+2.10 Explanations for all reductions suggested in conflicts
+
+This section is so significant, that its description has been expanded 
+to all of chapter 3.
+
+
+
+3 CONFLICT ANALYSIS Via the YACC CROSS REFERENCE SYSTEM
+
+
+This  chapter is concerned with using the tables provided by this YACC 
+Cross Reference System to understand the true meaning of  a  conflict, 
+as  reported by yacc.  There are typically several "meanings" that are 
+possible.  Some conflicts indicate the presence of genuine ambiguities 
+in a grammar.  Other conflicts indicate that the  tasks  specified  by 
+the  grammar  are beyond the capabilities of any parser that must work 
+with limited look ahead (i.e., impossible for an LR(1), which only has 
+one token of lookahead, and must make reductions at clearly prescribed 
+times).  Finally, the most complex form involves situations  that  are 
+too difficult to be handled *entirely* by an LALR(1) parser, and could 
+be  handled  "better" (a.k.a., correctly parsed) in some situations by 
+an LR(1) parser.
+
+As will be seen, there is a tremendous, and oft  confused  distinction 
+between  a "grammar", and a "language." The goal in grammar writing is 
+to concisely describe a language.  If  the  description  (a.k.a.,  the 
+grammar)  is  ambiguous  or just plain "wrong", it does not prove that 
+the language is indescribable, any more than an error  filled  program 
+"proves"  that a problem cannot be solved by a computer.  By analyzing 
+conflicts we seek to understand what is "wrong"  in  the  grammar,  so 
+that  it  may  be  modified,  and  more "correctly" reflect the target 
+language.  There are some restrictions  on  what  *is*  possible,  but 
+experience  has  shown  that  the  grammar  writer  is  more often the 
+restricting factor than the theoretical restrictions of  context  free 
+languages (for typical computer languages at least).
+
+Once the "meaning" of a conflict is understood, the author has several 
+options  for  handling  the  conflict.   In  some cases, the "default" 
+conflict resolution heuristics might be used.  In other  cases,  hints 
+may  be  provided  to  the  parser  generator  to  direct  some of the 
+resolutions (i.e., use %prec etc.).  Finally, the  most  theoretically 
+precise  mechanism  is  to  adjust  the  grammar  so  as to remove the 
+ambiguity.  In each case it is critical to understand the elements  in 
+the  grammar  that  are interacting to induce the conflict.  Note that 
+the last method, which effectively "fixes the grammar", is often  (but 
+not always) the most tedious and difficult.
+
+Note  that  although  some  methods  of  handling conflicts are easier 
+(i.e., let yacc apply some arbitrary disambiguation rules), they  tend 
+to  be  much more dangerous.  Specifically, such methods allow a naive 
+user to accidentally abandon whole sections  of  a  language  that  is 
+otherwise described by a grammar.  Often, by the time the author has a 
+clear   enough  understanding  of  a  conflict,  that  yacc  ambiguity 
+resolution can be depended on to provide "correct" results, the author 
+has enough information to perform any of the repair actions with equal 
+effect.  Users that rely on yacc resolution  rules  without  analyzing 
+the  conflicts  are  casting  their fate to the winds, and waiting for 
+field evaluation of their  products  to  identify  deficiencies.   The 
+bottom line is that there is no "easy way out" of analyzing conflicts, 
+but  by  using  the tables described below, a relatively casual author 
+can conclusively prove the  validity  of  the  approach  taken  (i.e., 
+validate the grammar that it being used).
+
+The  simplest way to analyze a conflict is exhaustive analysis.  It is 
+not graceful, but it is perfect.  Surprisingly, exhaustive analysis of 
+conflicts identified by yacc, only requires examination  of  a  *very* 
+finite  list  of  scenarios.  The JRYACC Cross Reference Tool works to 
+provide this  exhaustive  analysis  in  a  very  readable  form.   The 
+remainder  of  this  chapter  will  examine  the  issues  involved  in 
+conflicts, explain how a finite list of  scenarios  (contexts)  depict 
+all possible scenarios, and explain how to read the formatted contexts 
+enumerated by this tool.
+
+
+3.1 LR(1) Parsing
+
+In order to analyze conflicts, we must recall what a conflict is. This 
+section is far too brief for a reader that has never understood how LR 
+parsing   is  achieved,  but  it  will  suffice  as  a  refresher  for 
+experienced reader.  Additionally, LR parsing will be discussed from a 
+slant that is more focused on  conflict  analysis,  and  less  on  the 
+generation  of  parsing tables, compactions of tables, etc.  This is a 
+notable departure from approaches taken in more classical texts.
+
+LR(1)     is     the     abbreviation     for     "Left-to-right-scan, 
+Right-most-derivation-in-reverse, 1 token of look-ahead."
+
+The  "Left-to-right"  portion  indicates that the parsing will examine 
+tokens as a simple stream, as you or I would read  them  (example:  no 
+skipping  around  to  see how the stream ends; no looking at the final 
+word in a file, etc.).
+
+The phrase "right  most  derivation  reversed"  simply  provides  some 
+explicit  ordering for the processing of reductions, and commonly ties 
+LR() parsing to a firm theoretical basis (re: right-most derivations).
+
+The "1 token" specifies  that  all  decisions  to  perform  reductions 
+(specify   a   grouping   of  tokens  as  corresponding  to  a  single 
+non-terminal) will me made by looking at only one  more  token.   This 
+constraint  means that *only* 1 token will be viewable in advance, but 
+more importantly, all reductions (i.e., grouping via production rules) 
+must be concluded on all tokens to the left  *before*  any  additional 
+right  context  (a.k.a.  hints)  are  provided.   In  some sense, this 
+restriction is what places the harshest constraint on a LR parser, and 
+causes LR(1) conflicts to appear in an otherwise unambiguous grammar.
+
+We will now consider the three basic causes  of  conflicts:  Ambiguous 
+grammars, LR conflicts, LALR-only conflicts.
+
+3.1.1 Ambiguous grammars
+
+In  an  ambiguous  grammar  the  author has (inadvertently, or perhaps 
+conveniently) provided two distinct methods to parse a  single  series 
+of  tokens.   When  a  grammar is ambiguous, yacc will always indicate 
+that  it  cannot  decide  between  two  alternative  parsing  actions. 
+Fundamentally,  there  are two fully viable alternatives for parsing a 
+sentence, and  there  is  no  way  to  decide  between  them  (without 
+consulting an oracle, or a mind reader, or something more powerful).
+
+Since the general problem of deciding if a grammar is ambiguous is not 
+computable, miracles should not be looked for with the Cross Reference 
+tool.   However, most real life grammars are very decidably ambiguous, 
+and the the information gleamed  from  this  analysis  tool  generally 
+isolates actual ambiguities rather quickly if they exist.
+
+Consider the grammar:
+
+start : m
+      | o ;
+
+m: A B ;
+
+o: A B ;
+
+Note that the language consists of exactly one sentence "A B." Clearly 
+this  is an example where a poor choice was made for a grammar, as the 
+parsing the valid sentence  (there  is  only  one  possible)  in  this 
+language is not clear.  The parse of "A B" might be:
+
+start
+  |
+  m
+  |
+  +---+
+  |   |
+  A   B
+
+or it might be:
+
+start
+  |
+  o
+  |
+  +---+
+  |   |
+  A   B
+
+As  with  the  classical  ding-dong  yacc  example,  the cause of this 
+conflict (which would appear as a R/R conflict) is clear: the language 
+is ambiguous.  In a large grammar, the interactions of the many  rules 
+are  far  less clear, and it is generally very difficult to locate the 
+underlying ambiguity.
+
+Note that in this case the Reduce/Reduce conflict  would  happen  when 
+the  look-ahead symbol is an End-of-file.  Assuming that a common left 
+context can be found for both reductions (in this case "A B"), an  R/R 
+conflict  on  an End-of-file *always* indicates a "ambiguous grammar". 
+The genuine "ambiguity" is clear, in that an LR(1) ambiguity indicates 
+a common left context for this conflict, and an EOF indicates a common 
+right  context  (i.e.,  no  more  symbols),  and  hence  there  is  an 
+ambiguity.
+
+Basically,  if there is a real ambiguity in the grammar, then an LR(1) 
+conflict state will be reached, and there will exist  a  common  right 
+context  for that state such that either of the actions are allowable. 
+Although this tool only automates the location of left contexts,  some 
+imagination  on  the  part  of the reader is usually able to isolate a 
+common right context (if it exists).
+
+More often than not, when a conflict appears, the author will be  very 
+dismayed  that  one  of  the actions is even considered by the parser. 
+This will indicate that the grammar was "too general" in some  regard, 
+and  being  "more  specific"  will  remove  the  accidentally  induced 
+ambiguity.
+
+Just to prevent the reader from believing that "all true  ambiguities" 
+manifest  themselves  as  R/R conflicts, the following is an ambiguous 
+grammar for the same language, that presents an S/R  conflict.   After 
+manipulating  grammars  for  a  while,  one  quickly learns that it is 
+pretty easy to translate S/R into R/R conflicts, and vice versa.
+
+start: m B
+     | A B ;
+
+m : A ;
+
+If it is not clear that the above produces an  Shift-reduce  conflict, 
+the reader is encouraged to try it out with a copy of yacc.
+
+
+3.1.2 LR(1) ambiguous grammars
+
+Consider  the  following parse tree for the terminal sentence "A B C D 
+E".
+
+start
+  |
+  +--------+-----+
+  |        |     |
+  m        n     E
+  |        |
+  +---+    +---+
+  |   |    |   |
+  A   B    C   D
+
+
+One grammar which would support such a parse tree is:
+
+start : m  n  E ;
+
+m : A B ;
+
+n : C D ;
+
+
+Critically, in support  of  an  LR(1)  parse  of  this  sequence,  the 
+reduction  to  "m"  must  be made when *only* tokens "A B C" have been 
+examined.  It would *NOT* be an LR(1) parse if the decision to  reduce 
+"m:A B" were deferred until additional tokens were seen.
+
+Suppose we were to augment the grammar with the productions:
+
+start : m  n  E 
+      | o  n  F ;
+
+m : A B ;
+
+o : A B ;
+
+n : C D ;
+
+The acceptable language (i.e., list of valid terminal sentences) would 
+grow  to  be  "A  B  C  D  E"  as  well as "A B C D F".  Each of these 
+sentences would have unambiguous parse trees:
+
+start
+  |
+  +--------+-----+
+  |        |     |
+  m        n     E
+  |        |
+  +---+    +---+
+  |   |    |   |
+  A   B    C   D
+
+
+and:
+
+start
+  |
+  +--------+-----+
+  |        |     |
+  o        n     F
+  |        |
+  +---+    +---+
+  |   |    |   |
+  A   B    C   D
+
+and hence the grammar would remain unambiguous.  However, the  grammar 
+would  clearly  present an "LR(1) conflict." Specifically, after "A B" 
+had been seen, and "C" was provided as a look-ahead, it is  impossible 
+to  decide which of the two parse trees will end up being used.  Based 
+on the constraint that *only* this one additional look ahead symbol be 
+examined before all groupings (reductions) to the left are  performed, 
+it  cannot be determined whether the reduction to "m" or to "o" should 
+be performed.
+
+The above example is a very typical "real life" (almost) example of  a 
+conflict.   In  this  case, the left context was very easy to see, and 
+the  problem  was  abundantly  clear.   In  more   complex   grammars, 
+identifying why a conflict appears is generally far from obvious.
+
+
+3.1.2.1 Removing LR(1) conflicts from unambiguous grammars
+
+Since  we  have  given  a  nice example of an "LR(1)" conflict, that I 
+claim is typical, we will also diverge for a moment and explain how to 
+"repair" the grammar to remove the conflict.  As mentioned, there  are 
+some  theoretical  limitations on what can be done, but many conflicts 
+lend themselves to the following approach.  This approach is basically 
+applicable when it is desirable (in this case,  absolutely  necessary) 
+to  have  additional  right  context  information  prior  to  making a 
+reduction (or at least the associated action).  Note that the approach 
+is only valid when the reduction is *not* time critical (example of  a 
+time  critical  reduction  is one which modifies the symbol table, and 
+must be done prior to further lexing/parsing).
+
+We start  by  noting  that  the  conflict  shown  is  a  reduce/reduce 
+conflict.   Specifically, we are unsure of whether to reduce to "m" or 
+"o" when we are in the conflict context "A B" with lookahead "C".   As 
+we have stated, it is flat out impossible for a parser to decide which 
+reduction  to  make  without  additional  right context.  Hence, if we 
+could empathize with the lowly LR(1) parser, we  see  that  it  is  an 
+impossible  task  that has been asked of the parser (at least with the 
+current grammar!).
+
+Note that one method of repair is to "allow yacc to make an  arbitrary 
+decision".   In this case, such a solution is unacceptable as it would 
+throw away half of there language (there were only two valid sentences 
+to start with).  It is interesting to note that the  ordering  of  the 
+rules would provide yacc with the basis for deciding.
+
+As  a  first  step  to  removing the pressure on the parser (which was 
+being asked to do the impossible), we remove the  constraint  that  it 
+must  decide  to reduce to "m" when it is in the conflict context.  To 
+do this, we "inline expand" the offensive rule in the context that was 
+causing problems.  Specifically, we inline expand "m :  A  B"  in  the 
+rule "start: m n E ".  The resulting grammar is then:
+
+start : A B  n  E 
+      | o  n  F ;
+
+o : A B ;
+
+n : C D ;
+
+
+This  transformation  of  the grammar does *not* change the acceptable 
+language, but it changes the conflict  from  a  Reduce/Reduce  into  a 
+Shift/Reduce  conflict.   Specifically,  in the conflict context "A B" 
+with lookahead "C", the parser must decide whether to reduce the "A B" 
+to an "o", or whether to shift the "C" (and hope that "A B  n  F"  are 
+soon formed).
+
+It  is  interesting  to  note  that  we have now changed the basis for 
+yacc's default  disambiguation  from  being  based  on  rule  ordering 
+(standard  for R/R conflicts), to favoring the production "start : A B 
+n E" independent of ordering.  In the case of S/R conflicts, the shift 
+is always taken (assuming no %prec-edence is specified  to  override). 
+Unfortunately,  yacc  would  still  discard half the language (it will 
+even state (in diagnostics) that the rule "o : A B" is never reduced).
+
+As stated earlier, it is impossible to decide conclusively  to  reduce 
+"A  B" to "o" on lookahead of merely "C", hence we must further reduce 
+the  pressure  on  the  parser  to  make  the  decision.   The   final 
+modification  is  then to inline expand the pressing rule "o : A B" in 
+all significant contexts.  The resulting grammar is then:
+
+start : A B  n  E 
+      | A B  n  F ;
+
+n : C D ;
+
+Not  too  surprisingly,  the  above grammar is completely unambiguous. 
+Basically, an LR(1) parser tries out a multitude of parses at the same 
+time, and only must be  deterministic  when  it  reaches  a  reduction 
+point.   We  have  exploited this fact, in this last transformation by 
+creating what I would call a "Shift/Shift conflict."  Since  a  parser 
+does not need to decide anything special, the S/S conflict is absorbed 
+into   the   Deterministic   State   machine,  which  implements  this 
+non-deterministic  multitude  of  parses.   The   non-determinism   is 
+apparent  when  viewing  the  core  entries  in  each  state  (see the 
+traditional verbose output for  this  grammar),  as  the  states  will 
+clearly  show  that  it  is  not known which of the two rules is being 
+parsed, until sufficient context has been provided.
+
+The most technically interesting aspect about the transformations that 
+were just performed is that they  are  more  effective  than  what  is 
+provided  by  a  "more  powerful"  parser  generator, such an an LR(k) 
+parser generator.  The sophisticated reader might have noted that with 
+3 tokens of lookahead, the conflict context would either be "A B" with 
+lookahead "C D E", or "C D F", and the lookahead would  be  sufficient 
+to  solve the dilemma (i.e., remove the conflict).  To demonstrate the 
+power of the  transformations  just  provided,  suppose  the  original 
+grammar was:
+
+start : m  n  E 
+      | o  n  F ;
+
+m : A B ;
+
+o : A B ;
+
+n : C D 
+  | n C D ;
+
+Note that now "n" is an arbitrarily long list of "C D" sequences. With 
+this grammar, no matter how large a "k" is chosen, there will still be 
+a  conflict in an LR(k) parser.  In contrast, once the transformations 
+specified above are made, the grammar becomes:
+
+start : A B  n  E 
+      | A B  n  F ;
+
+n : C D 
+  | n C D ;
+
+which  is  LR(1)!   Fundamentally,  the  above   series   of   grammar 
+transformations  provides the power of k *non*-terminals of lookahead, 
+which may correspond to arbitrarily many terminals, and  hence  exceed 
+the power of an LR(k) parser, for any fixed k.
+
+
+3.1.3 LALR-only ambiguous grammars, and LALR-only conflict components
+
+We  have  now  discussed  both  ambiguous grammar, and LR(1) ambiguous 
+grammars (i.e., grammar which  induce  conflicts  in  LR(1)  parsers). 
+LALR-only  conflicts  represent  a  class  of  conflicts  that are not 
+problematic for  an  LR  parser,  but  are,  by  virtue  of  some  odd 
+constraints, untenable for an LALR parser.
+
+In order to discuss LALR-only conflicts, it is necessary to recall how 
+LR parsers differ from parsers generated by LALR parser generators. As 
+will  be  described, typical "parsers" are identical in structure, but 
+they differ in their complexity.
+
+
+3.1.3.1 LR parsers vs parsers generated by LALR parser generators
+
+To fully appreciate  what  is  being  discussed  it  is  important  to 
+understand  that  LR parsers are in some simple sense, perfect.  To be 
+specific, an LR(1) parser gathers all possible information  about  the 
+entire  left context (i.e., everything that has been scanned) and uses 
+this in deciding on future actions (i.e., shift,  or  reduce  by  some 
+specific  rule).   IF  a unique decision can be made based entirely on 
+left context and current look-ahead, then an LR parser  can  make  the 
+decision,  perfectly.   There is no better algorithm for parsing based 
+on this information.  period.
+
+It can be  shown  than  an  LR(k)  parser  can  be  implemented  by  a 
+"Deterministic  Push  Down  Automaton"  (a state machine that can push 
+it's state onto a stack, exactly  the  way  yacc  does).   Hence,  the 
+entire left context can be summarized as one of a several (but finite, 
+no  matter  how large the left context is) states, and the decision on 
+course of action can be based exclusively on  the  top-of-stack-state, 
+and  the  lookahead set.  Hence, a full LR(1) parser ends up looking a 
+lot like what most folks have come to know and love as a yacc  parser, 
+consisting  of  a  yacc stack, and some look-ahead, and some tables to 
+combine the two so as to decide on actions.
+
+Given the  immense  similarity  between  a  yacc  (LALR(1)  generated) 
+parser,  and an LR(1) parser, the natural question is why is there any 
+difference at all?   Or,  to  put  it  another  way,  if  there  is  a 
+difference,  why  does  anyone  want  LALR(1)  when  perfect is "soooo 
+close?"
+
+As it turns out, LALR parsers are easier to generate quickly (courtesy 
+of such work as was done by Pennello and DeRemer).  Certainly  such  a 
+reason  would  not  support  avoiding the use of LR(1) parsers, as the 
+parser generator is only run rarely, and the parser is  generally  run 
+very  often  (excluding  the  work  of  grammar  authors  :-) ).  More 
+importantly, the "perfection" of LR parsing comes with a price: a much 
+greater number of states.  This increase generally means a much larger 
+state transition table (or lots more code), which results  in  a  much 
+larger parser.
+
+I  have  heard  numbers quoted such as LR parsers require "double" the 
+number of states, and "orders of magnitude more", but the real  answer 
+is:  enough  to completely separate out all the left contexts, for all 
+the "basic states." Looking at a typical C  grammar,  it  is  easy  to 
+conceive  of  distinctive  left context including either '(', '{', and 
+'[' as being significant.  If you are willing to  take  my  word  that 
+most  states  in an LALR parser *don't* distinguish between these left 
+contexts, we can immediately see that  (since  almost  all  the  basic 
+states  can  be found in such contexts) that the size of the LR tables 
+for such a grammar would be at least triple that  of  an  LALR  parser 
+(clearly  such  left  contexts  much  be  handled  distinctly by an LR 
+parser, as they would vary the response to matching  brackets:  syntax 
+error  vs  reduce  some  then  shift).  Examining statements, we could 
+probably double yet again that number, by noting that the response  to 
+"else"  depends  on whether we have an unmatched "if", and hence there 
+are probably at least six times as  many  states  as  an  LALR  parser 
+generator would produce.
+
+Having  heard how much context is lost or ignored in an LALR generated 
+parser, it almost starts to be surprising that any work gets done with 
+LALR parsers.  The truth is that the  states  are  very  (very  is  an 
+understatement)  cleverly  chosen  so  that a shift is never done on a 
+syntax-error terminal, but some reductions *might* be  done  (even  if 
+the lookahead does represent a syntax error).  This tends to combine a 
+*lot*  of states very efficiently.  Unfortunately, (hence the topic of 
+this section), too many states are sometimes combined (a.k.a. merged).  
+As a result, several left contexts are merged (as far  as  the  parser 
+can  tell,  when  looking  *only* at the top of the yacc stack), which 
+then makes the decision as  to  future  actions  indefinite  (i.e.,  a 
+conflict appears).
+
+To  be  specific  about  how  this  set  of states is ever so cleverly 
+conceived, the set of states is exactly the  set  of  states  that  an 
+LR(0) parser would use.  An LR(0) has no look-ahead, and decides based 
+only  on  what  has been shifted onto the stack (and possibly reduced) 
+exactly what to do next.  Very few real life grammars are  LR(0),  but 
+such   a  set  of  states  may  be  nicely  augmented  with  lookahead 
+information (but no change in the number of states!) to form  what  is 
+called  an  LALR(1)  generated  parser.  The property that a bad token 
+(i.e., syntax error) cannot be "shifted" by an LR(0)  parser,  carries 
+over  into an LALR(1) parser, and reveals a syntax error when there is 
+no alternative other than a shift (i.e., possibly after  a  number  of 
+reductions have be performed).
+
+It can also be noted that since an LALR generated parser is willing to 
+perform   reductions   (but   not   shifts)   in   the   face   of   a 
+syntax-error-look-ahead, this willingness can be extended to  simplify 
+many  resulting  states  to  have more "default reductions." Since the 
+LALR generation process has already conceded the "immediate  reporting 
+of  a  syntax  error",  that was provided by an LR parser, there is no 
+real  functional  loss,  but  typically  there  is  significant  table 
+compression  (this  is  why many yacc parsers perform a lot of default 
+reductions rather than  using  available  information  to  identify  a 
+syntax error).
+
+
+3.1.3.2 Sample LALR-only ambiguous grammar
+
+Consider the following grammar (which can be submitted to yacc):
+
+%token  '(' ')' DIGIT 
+%%
+program : '(' paren_fixer
+        | '(' number      ')'
+        |     paren_fixer ')'
+        |     number
+        ;
+
+   paren_fixer : DIGIT;
+
+   number : DIGIT;
+%%
+
+The above grammar specifies a language with four legal sentences, each 
+of  which  has  a  unique (i.e., unambiguous) parse tree.  If however, 
+this sample is processed by yacc (or any LALR parser generator),  then 
+the following results will appear:
+
+yacc: 1 rule never reduced
+yacc: 2 reduce/reduce conflicts.
+There are 10 states.
+
+As  will  be  shown, there is no LR conflict, it is just that the LALR 
+approach to using *only* 10 states has induced the conflict.
+
+In order to prove this is an LALR-only conflict, we will  examine  the 
+resulting parser carefully, and prove that an LR parser would not have 
+any  conflicts.   We  will also discuss how "state splitting" can cure 
+such a problem, and give an example of a  rather  novel  strategy  for 
+solving  this  problem  within  the  constraints  of  an  LALR  parser 
+generator.
+
+Appendix A contains the complete YACC Cross Reference output  provided 
+for  this sample grammar.  You may choose to examine it now, before we 
+extract sections of it during the analysis.  This grammar  was  chosen 
+to  be about as small as I could make it, and still present this class 
+of conflict.
+
+3.1.3.2.1 Analysis of the sample LALR-only ambiguous grammar
+
+The following was extracted from Appendix A,  but  is  annotated  here 
+with  additional  commentary.   We begin our exploration by looking at 
+the concise list of conflicts:
+
+>	Concise list of conflicts:
+>
+>	2: reduce/reduce conflict (reduce 5, reduce 6) on $end
+>	2: reduce/reduce conflict (reduce 5, reduce 6) on ')'
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+
+The above immediately tells us that both of the R/R conflicts occurred 
+in  state  2.  For reasons that will be come apparent shortly, we will 
+focus our attention on the conflict  involving  ')'.   The  interested 
+reader  is  invited  to  perform a similar analysis of the conflict on 
+$end (which represents an End-of-file).
+
+Although there are several interesting sections  in  Appendix  A,  the 
+most  significant  is  the  section  entitled  "Explanations  for  all 
+reductions suggested in conflicts".  Since  we  are  focusing  on  the 
+conflict  involving  the lookahead symbol ')', we would proceed to the 
+relevant demonstration subsection:
+
+>	
+>	Demonstration(s) of reduction via rule (5) in state 2, when next token is ')'
+>		paren_fixer : DIGIT (5)
+
+The above heading indicates that we are about to be presented with the 
+analysis of how rule 5 might be  used  while  in  state  2,  when  the 
+lookahead token is a ')'.
+
+The following extract has some line number information at the far left 
+for reference in the text:
+
+>	
+1>	From state 0
+2>	 $start paren_fixer      transitions to state 4, and then <')'> can follow.
+3>	        DIGIT .  (5)
+>	
+4>		Following the 1 states below state 2, with lookahead <')'> REDUCE via (5) is possible.
+5>			Minimal stack context:	 0 2
+6>			Corresponding symbols:	 $start DIGIT . ')'
+>			Sample sentence:	 $start DIGIT . ')'
+
+
+
+What  all  the  above  notation says is that the only way (this is the 
+*only* demonstration in this section, and this section is  exhaustive) 
+that rule (5) can be invoked in state 2 is as follows:
+
+a)  The  yacc  stack  beneath state 2 *must* contain state 0 (see line 
+"5>").  There *might* be  other  states  beneath  that,  but  the  top 
+section of the stack MUST contain state 2 on top of state 0.
+
+b)  The  only  example  of how this yacc state stack can be reached is 
+"DIGIT" (if there were options, then a  "!"  would  have  denoted  the 
+start of optional/variable prefixes).  Note that we can look as far to 
+the  left  as  the  $start,  and  we  still  do  not  see  a "!". This 
+information is presented on line "6>".
+
+As a "proof" that this scenario can lead to shifting  the  ')',  lines 
+"1>",  "2>",  and "3>" present a reduction sequence and justification. 
+Specifically, line "3>" suggests that rule 5 be used to reduce "DIGIT" 
+to "paren_fixer".  At that point, line "2>"  suggests  that  we  would 
+transition  (assuming  we were in the underlying state 0, as mentioned 
+in line "1>") from state 0 to state 4.  Moreover, line  "2>"  suggests 
+that  in  state  4,  ')' is acceptable rather directly.  If we examine 
+state 4 we see that:
+
+>	state 4
+>		program : paren_fixer . ')'  (3)
+>
+>		')'  shift 8
+>		.  error
+
+which shows that a shift is performed on a ')'.
+
+Moving on to the discussion of the  reduction  via  rule  6,  and  its 
+context:
+
+>	
+>	Demonstration(s) of reduction via rule (6) in state 2, when next token is <')'>
+>		number : DIGIT (6)
+>	
+>	
+1>	From state 1
+2>	 $start '(' number      transitions to state 7, and then <')'> can follow.
+3>		    DIGIT .  (6)
+>	
+4>		Following the 1 states below state 2, with lookahead <')'> REDUCE via (6) is possible.
+5>			Minimal stack context:	 0 1 2
+6>			Corresponding symbols:	 $start '(' DIGIT . ')'
+>			Sample sentence:	 $start '(' DIGIT . ')'
+
+
+We see that the only way that a reduction via rule 6 is possible (here 
+again our "exhaustive list" has only one entry) is when:
+
+a)  The  yacc  stack beneath state 2 contains state 1 (see line "5>"). 
+There *might* be other states beneath that, but the top section of the 
+stack MUST contain state 2 on top of state 1.
+
+b) The only example of how this yacc state stack  can  be  reached  is 
+"'('  DIGIT" (if there were options, then a "!" would have denoted the 
+start of optional/variable prefixes).  This information  is  presented 
+on line "6>".
+
+If  we  stop  to  think  about  this,  then  we realize that these two 
+scenarios (appropriate for reduction via rule 5 vs rule  6)  are  very 
+detectably  different.   Specifically,  if the entry on the yacc stack 
+beneath the "official" conflict state 2 is state 0, then we should  be 
+reducing  using rule 5.  If the entry underneath state 2 is a state 1, 
+then we should be reducing via rule 6.  We can wonder why  yacc  chose 
+to  merge these distinct left contexts into state 2 (the contexts must 
+be distinct, in that they result in distinct yacc stack entries),  but 
+it  is clear that a "perfect" LR parser would not have trouble at all. 
+Since an LR parser takes all left context into  account,  it  (the  LR 
+parser)  would  certainly  be able to distinguish these two scenarios, 
+and hence would not notice any conflict.  As we move on to reading the 
+summary information, it is important to recall this fact that state  2 
+is entered from clearly distinct contexts, and it is this combining of 
+contexts that appears to be the source of our problems (conflict).
+
+The  thoughtful  analysis  of  the  last paragraph is presented in the 
+automated documentation as follows:
+
+>	Summary of conflict contexts leading to state 2 and lookahead symbol <')'>
+>		Possible reductions rules include (5,6)
+>			paren_fixer : DIGIT (5)
+>			number : DIGIT (6)
+1>		3 conflict contexts were found.
+>
+
+
+Up to this point  only  summary  information  is  presented.   The  "3 
+conflict  contexts" that are spoken of on line "1>", are a yacc stacks 
+of "2", "1 2", and "0 2".  
+
+Next, all contexts that are truly LR ambiguous contexts are cast aside 
+(in this grammar, there are no truly LR ambiguous contexts),  and  the 
+results shown are the LALR-only conflict contexts:
+
+1>	LALR-only-conflicts are present.  Splittable states include: 2
+2>		3 conflict contexts (1 splittable state(s)) are LALR-only problems.
+3>		Unambiguous context tree is:
+>
+4>	--2+-1(6)
+5>	   --0(5)
+
+Line  "1>"  suggests  that  state 2 should be "split" (we will explain 
+what this means in a  moment),  but  our  discussion  above  certainly 
+identified state 2 as an overburdened state.
+
+Lines  "4>"  and  "5>"  present  the "context tree" for the conflicts. 
+Although the symbols "+-" and "--"  appear  useless  here,  in  larger 
+trees they form the connecting lines in a graphical presentation.  The 
+tree  is  "rooted"  in  state  2 (see line "4>"), and has two distinct 
+underlying contexts "1" (shown on line "4>") and "0"  (shown  on  line 
+"5>").   Note  that  the  parenthesized numbers, such as "(6)" on line 
+"4>",  indicate  that  in  this  context,  reduction  via  rule  6  is 
+reasonable. 
+
+Since  we  have  showed  earlier that the conflict in state 2 had left 
+contexts that are distinctive enough that a decision can be made as to 
+an action, we have proved there there is no  LR(1)  conflict  in  this 
+grammar  (at  least  with look ahead ')' ).  By doing so, we have then 
+proved that the above conflict  is  "LALR-only",  which  means  it  is 
+problematic for a LALR parser generator, but not an LR parser.
+
+
+
+3.1.3.2.2 Sample Removal of LALR-only conflict via state splitting
+
+Since  we  have so carefully described the LALR-only conflict provided 
+in the grammar presented in Appendix A, we will take a  brief  tangent 
+and  describe  what  "state  splitting" is, and how it can remove such 
+conflicts.  Understanding  this  example  will  make  reading  certain 
+elements of the conflict analysis sections a bit easier.
+
+Recall from our discussion that state 2 was the cause of the conflict. 
+Also recall that we could determine the proper action (reduce via rule 
+5,  vs  reduce via rule 6) simply by looking below the top of the yacc 
+stack.  Specifically, if the next-to-the-top stack entry was state  0, 
+then  reduction via rule 5 was correct, if state 1, then reduction via 
+rule 6 was indicated.  Since we wish to maintain the simplicity  of  a 
+typical  yacc  parser,  we  do  not wish to alter the algorithm, which 
+computes action based on examining *only* the top of  stack,  and  the 
+look-ahead  set.   Certainly,  making  the algorithm more complex, and 
+diverting to a special "if you reach this state, then look  down  into 
+the stack..." would work, but it is unnecessary.
+
+The  question  is: Since we are not willing to look down into the yacc 
+stack, how can we force information held  within  the  yacc  stack  to 
+propagate to the top of the stack?  When posed in this way, the answer 
+becomes clear....
+
+If  we  look  at  the"Sample Stack Context and Accessing Sentences for 
+each State" provided in appendix A, and focus on state 2, we see:
+
+>	state 2: 	2 incoming, 0 outgoing states; entering via state 0:
+>		Minimal stack:  0 ! 2
+>		symbols:	 $start ! DIGIT
+>		sentence:	 $start ! DIGIT
+
+Note that there are only "2 incoming" states.  Indeed,  we  know  from 
+our analysis that states 0 and 1 can each transition to state 2, so we 
+are  actually  considering  all  possible states that lead to state 2. 
+What we really wish we had was two separate copies  of  state  2,  one 
+that  was  accessed  via  state 0, and the other that was accessed via 
+state 1.  The easy way to achieve this is "simply make a copy of state 
+2", or in the jargon of this section, "split state 2."
+
+To split state 2, we first look at what state 2 is defined to do  (see 
+appendix A):
+
+>	state 2
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+>
+>		.  reduce 5
+
+Next, since there are only 10 states (numbered 0 through 9), we create 
+a copy, but give it the unused number "state 10":
+
+>	state 10
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+>
+>		.  reduce 5
+
+
+Finally,  we  adjust  the  original  state  1  so that rather than its 
+current transition to state 2:
+
+>	state 1
+>		program : '(' . paren_fixer  (1)
+>		program : '(' . number ')'  (2)
+>	
+>		DIGIT  shift 2
+>		.  error
+>	
+>		paren_fixer  goto 6
+>		number  goto 7
+
+we make it transition to our newly created split  state  (i.e.,  state 
+10):
+
+>	state 1
+>		program : '(' . paren_fixer  (1)
+>		program : '(' . number ')'  (2)
+>	
+>		DIGIT  shift 10
+>		.  error
+>	
+>		paren_fixer  goto 6
+>		number  goto 7
+
+Now we see that when we reach state 2, we must have come from state 0, 
+and  so  reduction  via  rule 5 is indeed correct.  On the other hand, 
+when we arrive in state 10, we must have come there via state  1,  and 
+so  we  wish  to reduce using rule 6 as the default.  We can make this 
+adjustment to state 10:
+
+>	state 10
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+>
+>		.  reduce 6
+
+We have now defined a parser that properly parses the grammar that was 
+supplied.  Note that what was done was a  splitting  of  state  2,  to 
+distinguish  the  underlying  contexts.   All  the  steps  can  rather 
+directly be automated, and hence a mechanism  for  improving  upon  an 
+LALR  parser  was  described.   Note  that  in  truth, typing over the 
+verbose output of yacc does not a parser  make,  but  the  integration 
+into a parser generator is not that difficult.
+
+The intent reader will also find the the "minimal splitting" of states 
+is  a  slightly  complex  problem,  especially  when there are demands 
+posted by multiple conflicts, and a long and complex "conflict context 
+tree." Hence,  optimal  state  splitting  is  a  slightly  interesting 
+challenge,  but  existing  work in this area (re: Minimal State Finite 
+State Machines built on constraints  including  "don't  care")  should 
+provide all the necessary algorithmic horsepower.
+
+After  "reinventing"  this state splitting method, I was told that the 
+original work on this topic was done by Pager  ("A  Practical  General 
+Method  for  Constructing  LR(k)  Parsers",  Acta Informatica, 1977, p 
+249), but I have yet to see the paper.  I have in the mean  time  read 
+"Efficient  Full  LR(1)  Parser  Generation",  David  Spector, SIGPLAN 
+Notices V21, No.  12, which also describes  some  issues  involved  in 
+state  splitting.   Note  that  Spector's  paper  appears  to  confuse 
+"removal of  LALR-only  conflicts"  with  the  creation  of  "Full  LR 
+parsers."  As  has  been  explained  here,  an  LR  parser has certain 
+features  involving  immediate  error  detection   (prior   to   *any* 
+reductions),  and  hence  removal of LALR-only conflicts would provide 
+(to invent a name) NQLR parsing (Not Quite LR), or  perchance,  MTLALR 
+parsers  (More  Than  LALR), but *not* full LR parsers.  Additionally, 
+the approach of Spector removes  *all*  LALR-only  conflict  contexts, 
+which  is  not  actually necessary.  Detailed examples are provided in 
+the discussion of the YACCable C++  grammar,  wherein  some  LALR-only 
+conflicts  components  can  be shown to be unimportant in light of the 
+default reductions taken.
+
+
+3.1.3.2.3  Sample  Removal   of   LALR-only   conflict   via   grammar 
+augmentation
+
+In  the  last  section  we  described a method of removing a LALR-only 
+conflict by modifying the underlying state machine produced by a  LALR 
+parser  generator.   Although  this  is  probably the easiest and most 
+precise approach (assuming you have access to  yacc  source,  and  the 
+where-with-all  to  code  it),  there  appears  to  be  an interesting 
+alternative involving adding "useless rules" to an  existing  grammar. 
+This approach of "augmenting" a grammar has several nice attributes:
+
+        1) It allows current LALR(1) parser generators to be used with 
+no  modification.   This  means that for what ever reason you *demand* 
+(or your boss demands :-) ) that you continue to use a specific parser 
+generator, that you can.  Some users have  magical  hooks  wired  into 
+their  parser  generators,  other  have special parser generators that 
+produce ultra-fast parsers,  or  ultra  compact  parsers.   Basically, 
+whatever the reason, there would be no need to change.
+
+        2)  It  appears  to  be possible to automatically generate the 
+augmenting rules.  I cannot say  this  conclusively,  but  it  appears 
+likely,  and  in many cases, I have existing code that succeeds.  This 
+paper is being written prior to completion of the effort in  order  to 
+document  the  YACCable  C++  grammar,  and hopefully future work will 
+clarify this issue.
+
+We define a "useless rule" as a production  that  we  can  *guarantee* 
+will  never be used.  The easiest way to create a "useless rule" is to 
+be sure it has a terminal on its  right  hand  side  that  *never*  is 
+provided  by  the  lexer.   For example, the following rule will never 
+have any impact on a parser assuming that "NEVER" is a  terminal  that 
+in never produced by the lexer:
+
+	program : NEVER ;
+
+Obviously,  the rule that we will propose is not totally "useless", as 
+it will perform a  very  interesting  function.   If  we  examine  the 
+printout  in Appendix A, we see the following at the conclusion of the 
+LALR-only analysis:
+
+>	The following rules might split the problematic states:
+>	
+>		program : '(' DIGIT error ; /* SPLIT state(s) 2 following state 1 for rule(s) (6) out of (5,6) */
+>			Minimal stack context:	 1 2
+>			Corresponding symbols:	 $start '(' DIGIT ')'
+>			Sample sentence:	 $start '(' DIGIT ')'
+>	
+
+For ease of creation, the token that will never  be  provided  by  the 
+lexer  is  "error."  Interestingly,  if the above rule is added to the 
+grammar provided in Appendix A, the LALR-only conflict (in  fact,  all 
+conflicts)  vanish!  The following is the modified grammar that has no 
+LALR conflicts:
+
+%token  '(' ')' DIGIT 
+%%
+program : '(' paren_fixer
+        | '(' number      ')'
+        |     paren_fixer ')'
+        |     number
+        ;
+
+   paren_fixer : DIGIT;
+
+   number : DIGIT;
+
+   program : '(' DIGIT error ; 
+%%
+
+Before explaining why this works, we pause  to  note  a  most  amazing 
+fact.   The  addition  of  a rule that contains the "error" token, has 
+caused the performance of the resulting LALR  parser  to  change  when 
+processing  sentences with no errors!!!  This is most amazing.  If you 
+are not amazed, I am amazed enough for both of us.  I always  had  the 
+belief  that  the  addition  of  productions to provide error recovery 
+would have no  impact  on  the  parser  as  it  was  processing  valid 
+sentences.   This  belief is in general false (as shown above), though 
+it is true when no LALR-only conflict contexts are present.
+
+Prior to explaining how the  augmenting  sentence  is  arrived  at  in 
+general,  it  should be comforting to the theoreticians that read this 
+to hear *why* such an augmentation should have any chance of  helping. 
+The  explanation is simply that LALR parser generators are constrained 
+to use only a fixed set of states based on an  LR(0)  parser.   Adding 
+*any*  rule, no matter how useless, might increase the number of basic 
+states.  If the number of states expand in just the right place,  then 
+the  LALR parser generator will use these distinctions to disambiguate 
+conflicts.  This is exactly the result that we have achieved.
+
+To understand why the above augmentation was  selected,  we  start  by 
+recalling the description of the state which contained the conflict:
+
+>	state 2: 	2 incoming, 0 outgoing states; entering via state 0:
+>		Minimal stack:  0 ! 2
+>		symbols:	 $start ! DIGIT
+>		sentence:	 $start ! DIGIT
+
+and:
+
+>	state 2
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+>	
+>		.  reduce 5
+>	
+
+The  problem that can be seen here is that the context of the state is 
+too small.  Basically, when we are in this state,  we  do  not  recall 
+what  the  context  to  the  left  was  beyond  the  "DIGIT" which was 
+indicated in:
+
+>		symbols:	 $start ! DIGIT
+
+Note that the "!" shows that there are several different  things  that 
+could  precede  this  state  on  the  stack.  Indeed, if only we could 
+recall whether we came from state 1, which means there was a  '(',  or 
+state  0,  which means there was no left context, then we could decide 
+what to do in this state.  Hence, we *wish* there was a entry in state 
+2 that made its core items look like:
+
+>	state 2
+>		paren_fixer : DIGIT .  (5)
+>		number : DIGIT .  (6)
+>               wish : '(' DIGIT . ...
+>	
+>		.  reduce 5
+>	
+
+If we could implant this additional entry into this state,  then  this 
+state  would be guaranteed to have a left context including a '('.  We 
+don't care where the other alternative ends up (there will have to  be 
+a  state  to take care of it), but we would definitely *not* have this 
+LALR-only problem.
+
+In order to have our wish come true, we recall that the only way  that 
+an  entry  is  made into the core for a state (i.e., where we want our 
+wish line to appear) is if there is a production that looks like  what 
+we  have  entered.  So we see that we will have to add a production to 
+the grammar.  Since we *don't* want to effect any of the other aspects 
+of the grammar, we want to make  sure  it  is  a  "useless  rule",  as 
+defined above.  Hence the rule must look something like:
+
+	wish : '(' DIGIT . NEVER ;
+
+The one remaining question is what should be left hand side be so that 
+we  will  achieve  the  desired implantation.  Clearly the word "wish" 
+will not tie into the grammar, and will have no impact.   The  correct 
+selection  is actually made by looking back at the conflict context as 
+described in Appendix A:
+
+
+>	Demonstration(s) of reduction via rule (6) in state 2, when next token is ')'
+>		number : DIGIT (6)
+>	
+>	
+1>	From state 1
+2>	 '(' number      transitions to state 7, and then <')'> can follow.
+3>	     DIGIT .  (6)
+>	
+4>		Which requires a 1 deep state stack below state 2.
+5>		After states:  1 2 on lookahead <')'>  REDUCE via (6) is possible.
+6>	    Minimal access sentence:   '(' DIGIT . ')'
+>	
+
+If we succeed in forcing:
+
+	wish : '(' DIGIT . NEVER ;
+
+into the core items for state 2, then the prior states must also  have 
+corresponding entries, but with the "." backed up one space.  Hence we 
+must have:
+
+	wish : '(' . DIGIT NEVER ;
+
+in  the  state that lead to state 2.  Looking at our demonstration, we 
+see that we need to have this prior wish implanted into state 1:
+
+>	state 1
+>		program : '(' . paren_fixer  (1)
+>		program : '(' . number ')'  (2)
+>	
+>		DIGIT  shift 2
+>		.  error
+>	
+>		paren_fixer  goto 6
+>		number  goto 7
+
+Looking at the entries in state 1, it is clear that if we added a  new 
+rule:
+
+	program : '(' DIGIT never ;
+
+then  it would have to be placed in state 1 exactly as desired, and we 
+would also have the desired entry in state 2.  If you run yacc on  the 
+augmented  grammar presented at the start of this section, and examine 
+the verbose output, you  will  see  that  this  is  exactly  what  has 
+happened in the state descriptions.
+
+The  slightly  sad  news is that this augmented grammar has 12 states, 
+rather than 11, which was achievable via state splitting.   Basically, 
+in  the  process  of  splitting  the desired state, we created another 
+state as well (by accident).
+
+Unfortunately, my current algorithm does not provide solutions to  all 
+LALR-only conflicts.  I believe it is close, but it is generally quite 
+difficult  to  manipulate  the  kernel  of  the  states by varying the 
+grammar.  The grammar represents a  list  of  transitions,  which  are 
+non-deterministically   explored   in   a  virtual  parser,  which  is 
+implemented  as  a  deterministic  push  down  automaton.   All   this 
+indirection  through  multiple  layers  of abstraction makes it rather 
+hard to focus on, and split a single state.  The general  approach  is 
+to  examine the conflict contexts provided by the YACC Cross Reference 
+system, and construct an appropriate production.   This  algorithm  is 
+currently implemented, and the results appear with the caveat:
+
+	"The following rules might split the problematic states:"
+			     ^^^^^
+
+As  far as I am concerned, further research is required on this topic. 
+Perhaps a reader will direct me to some existing body of work.
+
+
+
+3.2 Interpreting Conflict Analysis Documentation
+
+Within the last section we examined details  of  LALR-only  conflicts, 
+and   provided   example   analysis  of  a  small  grammar  using  the 
+automatically generated documentation provided in Appendix A.  In this 
+section, we will explore the more general format  of  the  information 
+presented in the documentation section entitled: "Explanations for all 
+reductions  suggested  in  conflicts."  Understanding  the  relatively 
+simple  scenarios  provided  in  the  last  section   is   a   general 
+prerequisite  for reading this section.  If you can understand most of 
+what is in Appendix A, then this section  should  be  meaningful,  and 
+allow  you  to  follow  what  is provided in the y.output file for the 
+YACCable C++ grammar.  Samples will commonly be taken from that  file, 
+but  the  samples  may  not  reflect  the most up-to-date grammar, and 
+should be viewed only as samples.
+
+The "Explanations ..." section of the the automated  documentation  is 
+broken  up  into  groups for each conflict state and lookahead symbol. 
+Specifically, for each state in which there is  a  conflict,  and  for 
+each   lookahead   symbol   which  induces  a  conflict,  there  is  a 
+corresponding section.
+
+The following is as typical section, taken directly from Appendix A:
+
+>	Demonstration(s) of reduction via rule (5) in state 2, when next token is <')'>
+>		paren_fixer : DIGIT (5)
+>	
+>	
+>	From state 0
+>	 $start paren_fixer      transitions to state 4, and then <')'> can follow.
+>	        DIGIT .  (5)
+>	
+>		Following the 1 states below state 2, with lookahead <')'> REDUCE via (5) is possible.
+>			Minimal stack context:	 0 2
+>			Corresponding symbols:	 $start DIGIT . ')'
+>			Sample sentence:	 $start DIGIT . ')'
+>	
+>	
+>	
+>	Demonstration(s) of reduction via rule (6) in state 2, when next token is <')'>
+>		number : DIGIT (6)
+>	
+>	
+>	From state 1
+>	 $start '(' number      transitions to state 7, and then <')'> can follow.
+>		    DIGIT .  (6)
+>	
+>		Following the 1 states below state 2, with lookahead <')'> REDUCE via (6) is possible.
+>			Minimal stack context:	 0 1 2
+>			Corresponding symbols:	 $start '(' DIGIT . ')'
+>			Sample sentence:	 $start '(' DIGIT . ')'
+>	
+>	
+>	Summary of conflict contexts leading to state 2 and lookahead symbol <')'>
+>		Possible reductions rules include (5,6)
+>			paren_fixer : DIGIT (5)
+>			number : DIGIT (6)
+>		3 conflict contexts were found.
+>	
+>	--2+-1(6)
+>	   --0(5)
+>	
+>	LALR-only-conflicts are present.  Splittable states include: 2
+>		3 conflict contexts (1 splittable state(s)) are LALR-only problems.
+>	
+>	LALR-only conflict contexts leading to state 2 and lookahead symbol <')'>
+>		Possible reductions rules include (5,6)
+>			paren_fixer : DIGIT (5)
+>			number : DIGIT (6)
+>		3 conflict contexts were found.
+>	
+>		Unambiguous context tree is:
+>	
+>	--2+-1(6)    $start '(' DIGIT
+>	   --0(5)    $start DIGIT
+>	
+>	The following rules might split the problematic states:
+>	
+>		program : '(' DIGIT error ; /* SPLIT state(s) 2 following state 1 for rule(s) (6) out of (5,6) */
+>			Minimal stack context:	 0 1 2
+>			Corresponding symbols:	 $start '(' DIGIT . ')'
+>			Sample sentence:	 $start '(' DIGIT . ')'
+>	
+>		$accept : DIGIT error ; /* SPLIT state(s) 2 following state 0 for rule(s) (5) out of (5,6) */
+>			Minimal stack context:	 0 2
+>			Corresponding symbols:	 $start DIGIT . ')'
+>			Sample sentence:	 $start DIGIT . ')'
+
+
+Each "section" which focuses on a state/lookahead,  has  one  or  more 
+"Demonstration" areas (the above example has two demonstration areas), 
+followed   by  a  LALR-only-conflict  analysis  area.   If  there  are 
+LALR-only conflicts (or conflict components), then there is a  summary 
+of the conflict contexts (a "Unambiguous context tree"), and a list of 
+proposed augmentations to remove the LALR-only components.
+
+The following sections will describe in detail the the contents of the 
+"Reduction Demonstrations", "Automatic LALR-only Analysis", "Automatic 
+LALR-only Summaries", and the "LALR-only augmentation proposals".
+
+
+
+
+3.2.1 Conflict Reduction Demonstrations
+
+Sections beginning with the text:
+
+	"Demonstration(s) of reduction via rule (Rn) in state Sn,
+	when next token is Tn" 
+
+are conflict reduction demonstrations.  The presence of such a section 
+indicates  that  there  is  either  a  Reduce/Reduce or a Shift/Reduce 
+conflict in state Sn, when the lookahead is token  Tn.   Specifically. 
+this  section  is  provided to demonstrate how indeed the reduction Rn 
+could possibly take place.
+
+During this section we will discuss  the  classical  S/R  conflict  on 
+"else"  as  an  example.   To  generate  a  demonstration, we used the 
+YACCable C+ grammar, and produced the following:
+
+>	Demonstration(s) of reduction via rule (472) in state 1100, when next token is <ELSE>
+>		selection_statement : IF '(' comma_expression ')' statement (472)
+>	
+>	
+>	From state 1036
+>	 $start translation_unit identifier_declarator '{' statement_list_opt ! IF '(' comma_expression ')' statement      transitions to state 1100, and then <ELSE> can follow.
+>													    selection_statement .  (459)
+>													    IF '(' comma_expression ')' statement .  (472)
+>	
+>		Following the 5 states below state 1100, with lookahead <ELSE> REDUCE via (472) is possible.
+>			Minimal stack context:	 0 1 52 241 423 ! 656 833 950 1036 656 833 950 1036 1100
+>			Corresponding symbols:	 $start translation_unit identifier_declarator '{' statement_list_opt ! IF '(' comma_expression ')' IF '(' comma_expression ')' statement . ELSE
+>			Sample sentence:	 $start IDENTIFIER '{' ! IF '(' IDENTIFIER ')' IF '(' IDENTIFIER ')' ';' . ELSE
+
+
+For a novice YACC author, it is traditionally  a  mystery  as  to  why 
+there  is  a  S/R  conflict  on  ELSE,  in a typical C grammar.  If we 
+examine the state description for the conflict state,  we  would  only 
+see:
+
+>	1100: shift/reduce conflict (shift 1149, reduce 472) on ELSE
+>	state 1100
+>		selection_statement : IF '(' comma_expression ')' statement .  (472)
+>		selection_statement : IF '(' comma_expression ')' statement . ELSE statement  (473)
+
+Since  this  core is all that is visible, the novice YACC author would 
+construct the program (mentally) that looked like:
+
+	main() { if (1) foo ; 
+		 else ...
+
+and be amazed that a parser generator even *considered* doing anything 
+other than shifting.  After all, if a reduction of "if (1) ;" is  made 
+to   "selection_statement",   how   could   the  "else  ..."  ever  be 
+incorporated  into  a  valid  program?   Unfortunately,  this   novice 
+performed  insufficient analysis, and failed to see the real "conflict 
+context." There  is  a  real  conflict  here,  and  the  demonstration 
+isolates it quite precisely.
+
+After looking at enough of the "demonstrations", a reader will be able 
+to quickly realize the *real* conflict takes place when a program such 
+as:
+
+	main() { if (0) 
+		    if (0) 
+			foo;
+		else ...
+
+or, with slightly different indentation:
+
+	main() { if (0) 
+		    if (0) 
+			foo;
+		    else ...
+
+is  presented.  We will now explain how such examples (which hopefully 
+have meaning to a reader)  are  made  visible  by  the  lines  of  the 
+demonstration.
+
+
+Each   demonstration   context   is  provided  based  on  a  "conflict 
+contributing state", which is some state that must be reached prior to 
+the actual conflict state Sn.  In this case, the conflict contributing 
+state is state 1036. Moreover, *BEYOND* reaching state 1036, a 5  deep 
+yacc  stack  containing  the  states  "1036  656 833 950 1036 1100" is 
+needed to really demonstrate this conflict.
+
+If we were to look the section of the verbose  output  that  describes 
+states, we would see:
+
+>	state 1036: 	1 incoming, 131 outgoing states; entering via state 950:
+>		Minimal stack:  0 1 52 241 423 ! 656 833 950 1036
+>		symbols:	 $start translation_unit identifier_declarator '{' statement_list_opt ! IF '(' comma_expression ')'
+>		sentence:	 $start IDENTIFIER '{' ! IF '(' IDENTIFIER ')'
+
+The  reader  should  notice  the similarity between the line "symbols: 
+..." and the line that follows "From state 1036" in the demonstration. 
+This information was gathered into  the  "demonstration"  scenario  to 
+make  it easier for a reader to follow without having to look up state 
+1036 access information.  Recall that the "symbols:" entry provides  a 
+list  of  symbols  that correspond to the shorted stack that has state 
+1036 in it.  Hence, the first line of the demonstration  presents  the 
+"stack context" which leads to this conflict contributing state 1036.
+
+Looking  back  at the demonstration, to the right of the stack context 
+for state 1036 we see:
+
+>	...  statement      transitions to state 1100, and then <ELSE> can follow.
+>	     selection_statement .  (459)
+>	     IF '(' comma_expression ')' statement .  (472)
+
+Ignoring the text "transitions to ...", we focus now on the  remainder 
+of the text:
+
+>	...  statement
+>	     selection_statement .  (459)
+>	     IF '(' comma_expression ')' statement .  (472)
+
+these three lines suggest that the reduction via:
+
+	selection_statement : IF '(' comma_expression ')' statement  (472)
+
+followed by:
+
+	statement : selection_statement  (459)
+
+would  provide  a  acceptable scenario for this "demonstration".  Note 
+that the reductions that were just listed are "apparent" in the  lines 
+of  the  demonstration.  Specifically, the right hand side of rule 472 
+is shown in these three lines with  the  letter  'I'  in  "IF  '('..." 
+appearing directly below the first 's' in "selection_statement", which 
+is  the  left  hand  side  of  rule  472.  Similarly, the first 's' in 
+"selection_statement" (the rhs side  of  rule  459)  appears  directly 
+below  the  "s"  in  "statement", (which is the left hand side of rule 
+459).
+
+The "5 deep stack state below state 1100" corresponds to the 5  tokens 
+read across the line:
+
+>	     IF '(' comma_expression ')' statement .  (472)
+
+In  summary we see that we have the *very* reasonable option of making 
+a reduction via rule 472 when the next token is  "ELSE",  whenever  we 
+have the left context which consists of states:
+
+
+>	Minimal stack context:	 0 1 52 241 423 ! 656 833 950 1036 656 833 950 1036 1100
+
+Note  that state 1036 is located, as required, 5 states from the right 
+end of the list (5 below the top of the state stack).   It  turns  out 
+that every occurrence of state 1036 is preceded by states 656-833-950, 
+and  hence  the  first real option in such a stack is (as indicated by 
+the '!') just beneath state 656.
+
+As mentioned earlier, each state  is  associated  with  an  "accessing 
+symbol",  and hence the above list of states has an equivalent list of 
+symbols:
+
+>	Corresponding symbols:	 $start translation_unit identifier_declarator '{' statement_list_opt ! IF '(' comma_expression ')' IF '(' comma_expression ')' statement . ELSE
+
+Finally, each symbol has (as  described  earlier)  a  minimal  set  of 
+corresponding  terminal  tokens.  Using these, the listing expands the 
+above symbol list into a sample sentence composed of only terminals:
+
+>	Sample sentence:	 $start IDENTIFIER '{' ! IF '(' IDENTIFIER ')' IF '(' IDENTIFIER ')' ';' . ELSE
+
+Recall that the  initial  "IDENTIFIER"  is  meant  to  be  a  function 
+declarator,  and  although  syntactically  correct, a constraint would 
+require  something  more  like  "main()".   Similarly,  we  note  that 
+"statement"  was  expanded  to  a  lone  semicolon,  but  an arbitrary 
+statement could appear there.  So we arrive  at  an  understanding  of 
+what  the *real* problem is, and note the the parser is unsure of what 
+to do when it sees:
+
+	IDENTIFIER '{' ! IF '(' IDENTIFIER ')' IF '(' IDENTIFIER ')' ';' . ELSE
+
+	main ()     {    if  (   a          )  if  (     b        ) goo;   else
+
+Indeed, there is good reason to be unsure, as the grammar  is  clearly 
+ambiguous.   Fortunately,  specifications  such as the ANSI C standard 
+assert that the else should match the last  "else-less"  if-statement. 
+Since  the  statement "if ( 0 ) goo;" is an else-less if-statement, it 
+would be "incorrect" to reduce via rule 472, abandoning  the  upcoming 
+else.  Finally, we see that the shift/reduce conflict is being handled 
+*exactly*  as  it  is  specified  in a standard. :-) (at least in this 
+context...)
+
+It is also reasonable to ask if there might be other contexts in which 
+the reduction could take place, that we have  not  considered.   These 
+demonstration sections list absolutely *ALL* possible contexts for the 
+reduction  listed.  Hence, in the above example, we have verified that 
+in every possible context where a reduction via rule 479 in state 1100 
+on lookahead "ELSE" is possible (i.e., leads to eventual  shifting  of 
+"ELSE"),  the  reduction  should  be  avoided (i.e., our resolution in 
+favor of Shift is correct).
+
+There is only one detail in the  demonstration  format  that  was  not 
+covered  in  the  example above.  For this detail, we cite a different 
+demonstration, but only point at the differing item:
+
+>	From state 286
+>	 $start translation_unit TYPEDEFname ! TYPEDEFname '(' type_name      transitions to state 354, and then <')'> can follow.
+>							       global_or_scoped_typedefname abstract_declarator .  (446)
+>											    postfixing_abstract_declarator .  (620)
+>											    parameter_type_list .  (622)
+>											    '(' ')' type_qualifier_list_opt .  (398)
+>												    .  (61)
+>	
+>		Following the 3 states below state 758, with lookahead <')'> REDUCE via (61) is possible.
+>			Minimal stack context:	 0 1 28 ! 146 286 345 544 758
+>			Corresponding symbols:	 $start translation_unit TYPEDEFname ! TYPEDEFname '(' global_or_scoped_typedefname '(' ')' . ')'
+>			Sample sentence:	 $start TYPEDEFname ! TYPEDEFname '(' CLCL TYPEDEFname '(' ')' . ')'
+
+
+In this example, attention should  be  placed  on  the  "jagged"  edge 
+provided by the series of reductions:
+
+> ...   type_name      transitions to state 354, and then <')'> can follow.
+>       global_or_scoped_typedefname abstract_declarator .  (446)
+>				     postfixing_abstract_declarator .  (620)
+>				     parameter_type_list .  (622)
+>				     '(' ')' type_qualifier_list_opt .  (398)
+>					     .  (61)
+
+Notably, the first reduction is a "null reduction", and hence the yacc 
+stack prior to this reduction is represented by all tokens to the left 
+of  this point.  Secondly, the "3 deep state stack" corresponds to the 
+3 tokens to the left of this point, namely:
+
+	global_or_scoped_typedefname '(' ')'
+
+Notice that the bottom left edge of this "jagged" sequence is  can  be 
+visually  read  to  extract  the  stack  context  above and beyond the 
+"conflict contributing state" (in this case, state  286).   Hence  the 
+line:
+
+>	Corresponding symbols:	 $start translation_unit TYPEDEFname ! TYPEDEFname '(' global_or_scoped_typedefname '(' ')' . ')'
+
+Consists  of  a  part that accesses state 286, which gives context for 
+the conflict:
+
+>	Corresponding symbols:	 $start translation_unit TYPEDEFname ! TYPEDEFname '(' ...
+
+and the jagged sequence which carries us to the conflict state 758:
+
+>                                ... global_or_scoped_typedefname '(' ')' . ')'
+ 
+
+3.2.2 Summarizing Reduction Contexts
+
+After all the demonstration contexts have  been  exhibited,  they  are 
+summarized, and LALR-only conflict analysis takes place.  This portion 
+of  the  conflict  analysis always begins with the phrase: "Summary of 
+conflict contexts leading to state  Sn  and  lookahead  symbol  <Tn>." 
+Basically.    this   section   summarizes  all  the  contexts  into  a 
+graphically presented tree.  The following  summary  presentation  was 
+taken from the analysis of the YACCable C++ grammar:
+
+>	Summary of conflict contexts leading to state 739 and lookahead symbol <')'>
+>		Possible reductions rules include (8,656)
+>			paren_identifier_declarator : scope_opt_identifier (8)
+>			global_opt_scope_opt_identifier : scope_opt_identifier (656)
+>		21 conflict contexts were found.
+>	
+>	--739+-954+-1039(8)
+>	     |    +-953(8)
+>	     |    +-837(8)
+>	     |    +-836(8)
+>	     |    --835(8)
+>	     |
+>	     +-741+-737(8)
+>	     |    +-544(8)
+>	     |    +-540(8)
+>	     |    --508(8)
+>	     |
+>	     +-1039(8,656)
+>	     +-953(8,656)
+>	     +-837(8,656)
+>	     +-836(8,656)
+>	     +-835(8,656)
+>	     +-737(8,656)
+>	     +-544(8,656)
+>	     +-540(8,656)
+>	     --508(8,656)
+
+Notice that the tree is rooted at state 739.  All the states listed to 
+the  right of the root represent underlying yacc stack states (this is 
+the only time that moving down into the stack corresponds to moving to 
+the right in a diagram).  The numbers in parenthesis  list  the  rules 
+that  would  be  appropriate  for  reducing  with if this context were 
+presented during a parse.  For example, the line:
+
+>	--739+-954+-1039(8)
+
+indicates there is a significant context present  when  state  739  is 
+atop  state  954,  atop  state  1039.  Specifically, when this context 
+arises, a reduction in state 739  using  rule  8  would  be  possible. 
+Careful  examination  the  demonstrations provided earlier will indeed 
+locate the relevant demonstration, with the line:
+
+>	Following the 2 states below state 739, with lookahead <')'> REDUCE via (8) is possible.
+>		Minimal stack context:	 0 1 52 241 423 659 835 ! 954 1039 954 739
+
+Also note that other branches of the tree provided represent state 739 
+directly atop (for example) state 1039.  In this context we  see  that 
+the parenthesis include *both* rules 8 and 656:
+
+>	--739+-...
+>	     |
+>	     +-1039(8,656)
+
+Here again, exploring the demonstrations would locate support for both 
+of these suggestions:
+
+>	Following the 1 states below state 739, with lookahead <')'> REDUCE via (8) is possible.
+>		Minimal stack context:	 0 1 52 241 423 659 835 ! 954 1039 739
+
+as well as:
+
+>	Following the 1 states below state 739, with lookahead <')'> REDUCE via (656) is possible.
+>		Minimal stack context:	 0 1 52 241 423 659 835 ! 954 1039 739
+
+The  advantage  of  viewing these contexts in this condensed graphical 
+form is that it becomes easy to see  which  contexts  represent  truly 
+ambiguous left contexts (i.e., several reductions are applicable), and 
+which  represent  "LALR-only" conflict contexts.  In the next section, 
+this fact will be exploited, and the pruning of the  tree  will  leave 
+the LALR-only conflicts to be examined.
+
+
+3.2.3 Automatic LALR-only Conflict Summaries
+
+Having gathered together the underlying stack contexts as described in 
+the  last  section,  it  is  a  small  operation to isolate "LALR-only 
+conflict"  contexts.   Recall  from  the   discussion   of   LALR-only 
+conflicts,  that  such  conflicts  are  present when it is possible to 
+determine, based solely on left context and look ahead, what reduction 
+should take place.  In contrast, in an LR conflict, it  is  impossible 
+to  decide  between several possible reductions, because they are both 
+possible (recall by "possible" we mean that the lookahead symbol  will 
+be  shifted eventually, or in more precise theoretical terms: the left 
+context after the reductions plus the lookahead symbol form  a  viable 
+prefix to a sentence in the language).
+
+3.2.3.1 Direct Pruning of LR conflicts From the Context Tree
+
+Consider first the simple tree taken from the analysis of the YACCable 
+C++ grammar:
+
+>	Summary of conflict contexts leading to state 739 and lookahead symbol <'['>
+>		Possible reductions rules include (8,656)
+>			paren_identifier_declarator : scope_opt_identifier (8)
+>			global_opt_scope_opt_identifier : scope_opt_identifier (656)
+>		12 conflict contexts were found.
+>	
+>	--739+-1039(8,656)
+>	     +-954(8,656)
+>	     +-953(8,656)
+>	     +-837(8,656)
+>	     +-836(8,656)
+>	     +-835(8,656)
+>	     +-741(8,656)
+>	     +-737(8,656)
+>	     +-544(8,656)
+>	     +-540(8,656)
+>	     --508(8,656)
+>	
+>	Pruning removed all conflict states: There are no LALR-only components
+
+Notice  that  in  this context tree, every time a context was found in 
+the demonstration section that proved the viability of  reduction  via 
+either  rule  8  or rule 656, a second demonstration was also provided 
+that supported the feasibility of using the other  reduction.   So  we 
+see  that  every  context  listed  is  representative  of a full LR(1) 
+ambiguous left context.  The fact that  no  LALR-only  conflicts  were 
+found is indicated in the final line of the analysis above.
+
+In fact, if we examine some information about state 739 we see:
+
+>	state 739: 	11 incoming, 0 outgoing states; ...
+>		Minimal stack:  ...
+
+Interestingly, there are only 11 possible states that can appear below 
+state 739 on the yacc stack.  Since we have all 11 listed above in the 
+tree,  we can see that in fact, no matter how we get to state 739, one 
+of the contexts shown will be present, and reduction via either rule 8 
+or 656 will be possible.  The significance  of  this  evaluation  will 
+become clearer in the next example.
+
+
+3.2.3.2  Pruning  of  LR  conflicts  From the Context Tree using State 
+Information
+
+
+Consider another  analysis  section  provided  for  the  YACCable  C++ 
+grammar:
+
+>	Summary of conflict contexts leading to state 1105 and lookahead symbol <'{'>
+>		Possible reductions rules include (61,600)
+>			type_qualifier_list_opt : (61)
+>			simple_paren_typedef_declarator : '(' TYPEDEFname ')' (600)
+>		7 conflict contexts were found.
+>	
+>	--1105(61)+-1065--984--853(600)
+>		  |
+>	          --1041--957--843(600)
+>	
+>	Pruning removed all conflict states: There are no LALR-only components
+
+Here  again  pruning removed all the contexts, but the reason is a bit 
+less clear.  Note that what is indicated is that *IF* the top  of  the 
+yacc  stack  is  state 1105, then reduction via rule 61 is possible no 
+matter what is underneath it.  In contrast, the  search  for  contexts 
+that  allowed  reduction  via  rule  600 required the yacc stack to be 
+either:
+
+>	Following the 3 states below state 1105, with lookahead <'{'> REDUCE via (600) is possible.
+>		Minimal stack context:	 0 1 64 254 443 684 ! 853 984 1065 1105
+
+or
+
+>	Following the 3 states below state 1105, with lookahead <'{'> REDUCE via (600) is possible.
+>		Minimal stack context:	 0 1 64 254 443 684 ! 843 957 1041 1105
+
+Why, you should ask, are there no LALR-only conflicts?   Certainly  we 
+can  imagine that there are other states that could lurk beneath state 
+1105 on the yacc stack.  If one of those states (other than  1065  and 
+1041)  were under state 1105, then it would appear that only reduction 
+via rule 61 would  be  possible.   Looking  back  at  the  information 
+gathered about state 1105 we see:
+
+>	state 1105: 	2 incoming, 5 outgoing states; ...
+>		Minimal stack:  ...
+
+Which  reveals  that there are exactly 2 possible states that can lurk 
+beneath state 1105.  Since we have listed 2 in our tree, there are  no 
+other  possibilities!   The  questioning should however continue about 
+what could lurk beneath state 1041 (for example).
+
+>	state 1041: 	1 incoming, 48 outgoing states; ...
+>		Minimal stack:  1 64 254 443 684 ! 843 956 1041
+>		...
+
+Interestingly, there is only one possible state that can  lie  beneath 
+state  1041, and so it must be state 956.  We could then look at state 
+956 and see a similar piece of information, but the  "Minimal  stack:" 
+listing for state 1041 contains the whole story.  Note that the "!" is 
+placed  between  state  684, and state 843.  This indicates that there 
+are no other choices up until that point.  To be  specific,  the  only 
+state  that can possibly be found beneath state 1041 is state 956, and 
+the only state that can be found beneath that is state 843.
+
+Similar analysis of the other branch of  the  context  analysis  would 
+reveal  an  identical  scenario.  The bottom line is that if we are in 
+state 1105, then our demonstration has revealed that we  can  directly 
+reduce via rule 61.  Our examination just provided shows that whenever 
+we  are in state 1105, the underlying yacc stack *MUST* be either "853 
+984 1065 1105", or "843 956 1041 1105", and in either case,  reduction 
+via  rule 600 is possible.  Therefore, all left contexts of state 1105 
+support reduction via either rule.
+
+Having explained how contexts are discarded,  the  next  two  examples 
+will show how contexts can remain, and true LALR-only conflicts can be 
+isolated.
+
+
+3.2.3.3 LALR-only conflicts With No Consequences
+
+Consider  the  following, also taken from the analysis of the YACCable 
+C++ grammar:
+
+>	Summary of conflict contexts leading to state 739 and lookahead symbol <')'>
+>		Possible reductions rules include (8,656)
+>			paren_identifier_declarator : scope_opt_identifier (8)
+>			global_opt_scope_opt_identifier : scope_opt_identifier (656)
+>		21 conflict contexts were found.
+>	
+>	--739+-...
+>	     |
+>	     ...
+>	
+>	LALR-only-conflicts are present.  Splittable states include: 954 741 739
+>		12 conflict contexts (3 splittable state(s)) are LALR-only problems.
+>	
+>	LALR-only conflict contexts leading to state 739 and lookahead symbol <')'>
+>		Possible reductions rules include (8,656)
+>			paren_identifier_declarator : scope_opt_identifier (8)
+>			global_opt_scope_opt_identifier : scope_opt_identifier (656)
+>		12 conflict contexts were found.
+>	
+>		Unambiguous context tree is:
+>	
+>	--739+-954+-1039(8)    $start IDENTIFIER '{' TYPEDEFname '(' ! '*' '(' '*' IDENTIFIER
+>	     |    +-953(8)    $start IDENTIFIER '{' TYPEDEFname '(' ! '(' '*' IDENTIFIER
+>	     |    +-837(8)    $start IDENTIFIER '{' ! CLCL TYPEDEFname '(' '*' IDENTIFIER
+>	     |    +-836(8)    $start IDENTIFIER '{' ! INT '(' '*' IDENTIFIER
+>	     |    --835(8)    $start IDENTIFIER '{' TYPEDEFname ! '(' '*' IDENTIFIER
+>	     |
+>	     --741+-737(8)    $start IDENTIFIER '(' TYPEDEFname '(' ! '(' '*' IDENTIFIER
+>	          +-544(8)    $start IDENTIFIER '(' ! CLCL TYPEDEFname '(' '*' IDENTIFIER
+>	          +-540(8)    $start IDENTIFIER '(' ! INT '(' '*' IDENTIFIER
+>	          --508(8)    $start IDENTIFIER '(' ! TYPEDEFname '(' '*' IDENTIFIER
+
+
+Since  there  is a conflict in state 739 between reduction via rules 8 
+and 656 when the lookahead is ')', we should recall that  the  default 
+resolution  will  be  to  use  the  reduction via rule 8.  Hence, even 
+though we can show that there are 12 conflict contexts  (9  leaves  in 
+the  above tree), we do not have to worry about this issue.  Yes it is 
+true that these contexts are unambiguously deserving of reduction  via 
+rule  8  (i.e., if we tried to reduce using rule 656 in these contexts 
+we would get a syntax error before the ')' was ever shifted). However, 
+since we are going to use rule 8 all the time, there is no  reason  to 
+worry  about these LALR-only components of the LR conflict (note there 
+were some fully ambiguous contexts, so we refer to entries  shown  her 
+as the "LALR-only components").
+
+To  make  reading  these  contexts  a  bit easier, the sample sentence 
+(shown  earlier  during  the  demonstrations)  for  each  context   is 
+displayed  to  the  right  of  the  leaf.  Here again we are repeating 
+information  presented  elsewhere,  in  order  to  enhance  the  local 
+readability of a section.
+
+
+3.2.3.4 Significant LALR-only conflicts
+
+As  a  final  example,  we will consider a conflict with a significant 
+LALR-only conflict component.
+
+>	Summary of conflict contexts leading to state 758 and lookahead symbol <','>
+>		Possible reductions rules include (61,74)
+>			type_qualifier_list_opt : (61)
+>			postfix_expression : global_or_scoped_typedefname '(' ')' (74)
+>		27 conflict contexts were found.
+>	
+>	--758+-754--527+-1039(74)
+>	     |         +-953(74)
+>	     |         +-570(74)
+>	     |         +-505(74)
+>	     |         --330(74)
+>	     |
+>	     --544--345+-1014(61,74)
+>	               +-900(61,74)
+>	               +-754(61,74)
+>	               +-753(61)
+>	               +-748(61,74)
+>	               +-737(61,74)
+>	               +-720(61,74)
+>	               +-718(61,74)
+>	               +-716(61,74)
+>	               +-639(61,74)
+>	               +-544(61,74)
+>	               +-540(61)
+>	               +-508(61,74)
+>	               +-309(61,74)
+>	               +-296(61,74)
+>	               +-286(61,74)
+>	               --174(61,74)
+>	
+>	LALR-only-conflicts are present.  Splittable states include: 345 544 758
+>		6 conflict contexts (3 splittable state(s)) are LALR-only problems.
+>	
+>	LALR-only conflict contexts leading to state 758 and lookahead symbol <','>
+>		Possible reductions rules include (61,74)
+>			type_qualifier_list_opt : (61)
+>			postfix_expression : global_or_scoped_typedefname '(' ')' (74)
+>		6 conflict contexts were found.
+>	
+>		Unambiguous context tree is:
+>	
+>	--758+-754(74)    $start IDENTIFIER '(' '(' ! CLCL TYPEDEFname '(' ')'
+>	     --544--345+-753(61)    $start IDENTIFIER '(' '(' ! INT '(' CLCL TYPEDEFname '(' ')'
+>	               --540(61)    $start IDENTIFIER '(' ! INT '(' CLCL TYPEDEFname '(' ')'
+
+
+As with the last section, we can note that since there is  a  conflict 
+between  using  reduction  61 and 74, we will be using rule 61.  Hence 
+the contexts which unambiguously support the use of  rule  61  can  be 
+ignored.
+
+Alas,  the  context  suggested  by  state 758 atop state 754 is a real 
+problem.  In this context, an attempt to use rule 61 will only lead to 
+a syntax error (otherwise it would have appeared).  Hence we see  that 
+although the grammar is clear, an LALR parser generator is not capable 
+(directly)  of  creating  a  parser  that can correctly process such a 
+context.  The word "correctly" it taken to mean "as well as a  perfect 
+LR  parser."  (Recall from earlier discussions of LR parsing, that the 
+word "perfect" is actually redundant).
+
+Several solutions to this dilemma are apparent. The first thing to  do 
+is  to  understand  the  context  by  referring  to  the demonstration 
+provided earlier.  If we are lucky, then the context might turn out to 
+be a case where some constraint  is  being  violated,  and  hence  the 
+problem  is  not  significant  for  valid  programs  (i.e., error free 
+programs).  If however we cannot ignore the problem, there are several 
+ways to deal with it.
+
+
+The easiest way to handle LALR-only  conflicts  is  to  buy  a  better 
+parser generator.  There are several commercially available supposedly 
+LR  parser generators.  My experience has been that they are NQLR (Not 
+Quite LR), but they  are  close  enough  that  they  will  (hopefully) 
+process  this  context  correctly.  (Note that I haven't really played 
+with any of these parsers,  but  discussions  with  the  vendors  have 
+suggested that they are not "full LR parsers.")
+
+The  second solution is to improve the quality of nearly public domain 
+parser generators by upgrading  them  to  the  standard  NQLR  status. 
+Fixing up byacc would be an excellent approach.
+
+Finally.  the  third solution is to augment the grammar with "useless" 
+rules.  This approach is the topic of the next section.
+
+
+3.2.4 Augmentation Proposals to Remove LALR-only Conflicts
+
+Whenever  the  summary  section  isolates  LALR-only   conflicts,   as 
+described   above,   the  YACC  Cross  Reference  Tool  makes  several 
+suggestions as to  how  to  cure  these  problems  by  augmenting  the 
+grammar.  In Appendix A, we see the example:
+
+>	LALR-only-conflicts are present.  Splittable states include: 2
+>		3 conflict contexts (1 splittable state(s)) are LALR-only problems.
+>	
+>	LALR-only conflict contexts leading to state 2 and lookahead symbol <')'>
+>		Possible reductions rules include (5,6)
+>			paren_fixer : DIGIT (5)
+>			number : DIGIT (6)
+>		3 conflict contexts were found.
+>	
+>		Unambiguous context tree is:
+>	
+>	--2+-1(6)    $start '(' DIGIT
+>	   --0(5)    $start DIGIT
+>	
+>	The following rules might split the problematic states:
+>	
+1>		program : '(' DIGIT error ; /* SPLIT state(s) 2 following state 1 for rule(s) (6) out of (5,6) */
+>			Minimal stack context:	 0 1 2
+>			Corresponding symbols:	 $start '(' DIGIT . ')'
+>			Sample sentence:	 $start '(' DIGIT . ')'
+>	
+2>		$accept : DIGIT error ; /* SPLIT state(s) 2 following state 0 for rule(s) (5) out of (5,6) */
+>			Minimal stack context:	 0 2
+>			Corresponding symbols:	 $start DIGIT . ')'
+>			Sample sentence:	 $start DIGIT . ')'
+
+
+Note  that  two  rules are proposed in lines "1>" and line "2>" above. 
+Since we are handling rules 5 and 6, we know that yacc  will  tend  to 
+support  rule  5  automatically  (by  default).   What  we  need is an 
+augmentation that will sponsor (i.e., split out the state(s) needed to 
+support) rule 6.  The rule on line "1>" asserts that it  will  perform 
+this  feat.   Note that the "Minimal stack context:" it services is "1 
+2", which read left-right, lower in the stack to higher in the  stack: 
+yacc  state  2  atop  state  1.   This is indeed the context that must 
+invoke rule 6.  (The analysis for this  conclusion  was  presented  in 
+"3.1.3.2 Sample LALR-only ambiguous grammar").
+
+The  line  containing "Corresponding symbols" lists the access symbols 
+for the states 1 and 2, which  are  "'('"  and  "DIGIT"  respectively, 
+followed  by  the  lookahead  symbol ')' (in this case the symbols are 
+terminals, but in general they might be non-terminals.
+
+The next line provides "Sample sentence:", which is the  expansion  of 
+each  of  the  symbols  provided on the "Corresponding symbols:" line. 
+Since  the  symbols  were  all  terminals,  their  "minimal   terminal 
+expansion"  is  basically  the  terminals  (this is a bit unusual, but 
+since the sample grammar is so small, these sample  lines  are  a  bit 
+degenerate).
+
+If we add the only rule suggested, then the grammar will, as discussed 
+earlier,  become  conflict-free.   I  do  not  believe that I have the 
+totally correct algorithm yet, so I am not always this lucky.
+
+Looking next at a more complex example taken  from  the  YACCable  C++ 
+grammar analysis:
+
+
+
+>	LALR-only-conflicts are present.  Splittable states include: 345 544 758
+>		6 conflict contexts (3 splittable state(s)) are LALR-only problems.
+>	
+>	LALR-only conflict contexts leading to state 758 and lookahead symbol <','>
+>		Possible reductions rules include (61,74)
+>			type_qualifier_list_opt : (61)
+>			postfix_expression : global_or_scoped_typedefname '(' ')' (74)
+>		6 conflict contexts were found.
+>	
+>		Unambiguous context tree is:
+>	
+>	--758+-754(74)    $start IDENTIFIER '(' '(' ! CLCL TYPEDEFname '(' ')'
+>	     --544--345+-753(61)    $start IDENTIFIER '(' '(' ! INT '(' CLCL TYPEDEFname '(' ')'
+>	               --540(61)    $start IDENTIFIER '(' ! INT '(' CLCL TYPEDEFname '(' ')'
+>	
+>	The following rules might split the problematic states:
+>	
+>		postfix_expression : global_or_scoped_typedefname '(' ')' error ; /* SPLIT state(s) 758 following state 754 for rule(s) (74) out of (61,74) */
+>			Minimal stack context:	 0 1 33 174 330 ! 527 754 758
+>			Corresponding symbols:	 $start translation_unit paren_identifier_declarator '(' '(' ! global_or_scoped_typedefname '(' ')' . ','
+>			Sample sentence:	 $start IDENTIFIER '(' '(' ! CLCL TYPEDEFname '(' ')' . ','
+>	
+>		...
+
+
+Note:  (In  this  augmentation  suggestion,  we  are  focusing  on the 
+proposal to support reduction via rule 74.  Clearly  the  goal  is  to 
+split state 758 so that there is a distinct version whenever state 754 
+precedes  it.   Alas,  this  example "augmentation" does not split the 
+desired state (I checked by adding it,  and  then  running  this  YACC 
+tool).  I believe the approach is sound, and I am simply not isolating 
+the  offending  context  well enough in my rule proposal.  Future work 
+should correct this situation, but I did not want to further  delay  a 
+new release of a C++ grammar until this research was completed.)
+
+Getting  back  to  reading  the  analysis, note that the minimal stack 
+context includes eight states "0 1 33 174 330 ! 527 754 758", but  the 
+"!"  between  states  330  and state 527 indicates that only a typical 
+sample was provided to the left of this point (i.e., there  are  other 
+possible left stack contexts besides "0 1 33 174 330").
+
+The  line  providing "Corresponding symbols:" lists the access symbols 
+for each of these states, and also has the embedded "!" to show  where 
+the  options  begin.   Note  that since there were eight states in the 
+minimal stack context, there are eight  symbols,  plus  the  lookahead 
+token listed on this line.
+
+Finally, the "Sample sentence:" provides the minimal expansion of each 
+of  the  tokens  in listed in the previous line.  For convenience, the 
+"!" is also correspondingly embedded, but since  "Minimal  expansions" 
+are  rarely  unique, this line contain samples throughout (i.e., other 
+samples exists with  variations  to  the  right  of  the  "!").   Note 
+however,  that  it is very convenient to see this form, as it provided 
+simple direct insight into what sort of conflict is  being  addressed. 
+In this case, since we have:
+
+>	Sample sentence: IDENTIFIER '(' '(' ! CLCL TYPEDEFname '(' ')' ','
+
+This  is  a complete program prefix.  Specifically, we can deduce that 
+the program:
+
+	foo ( ( :: MY_CLASS () ....
+
+provides a confusing program to an LALR parser.   The  C++  aficionado 
+(if  not  cursing, or developing a migraine) would probably parse this 
+as:
+
+	foo          // some identifier
+	(            // either starting an initializer, or a prototype
+	(            // can't be a prototype, so we must be an initializer
+		     // starting a parened-expression, or an old style cast
+
+	:: MY_CLASS ()  // either a parened-expression: function like cast of void
+			// or a "function returning MY_CLASS" type
+	,            // well this rules out an old style cast, so...
+			// it must be a parenthesized comma-expression is
+			// the *FIRST* initializer argument 
+
+
+Hence this segment is rather similar to code like:
+
+	int foo ((5, 6));
+
+which is similar to old style initialization:
+
+	int foo = (5, 6);
+
+and since comma expression return the value of only its last argument, 
+this is the same as:
+
+	int foo = (6);
+
+or simply:
+
+	int foo = 6;
+
+I can vaguely imagine code like this being useful,  in  that  the  the 
+first  expression  might have side effects, but this is not really the 
+topic of this paper.
+
+What should be noted is that a very meaningful  understanding  of  the 
+conflict,  the  LALR-only components, and the the grammar was obtained 
+by examining the tables shown above.
+
+
+
+4 FUTURE ENHANCEMENTS
+
+The following are items that I would like to add to a  LALR(1)  parser 
+generator:
+
+1)  When  summarizing  non-terminals, an indication should be given of 
+whether  the  non-terminals   are   left-recursive,   right-recursive, 
+recursive,  or none-of-the-above.  Note that if a non-terminal is both 
+left and right recursive, then the grammar *must* be ambiguous.   This 
+is a common error, and can easily be diagnosed by such evaluations.
+
+2)  The  bulk  of  the information presented in the "Minimal access to 
+states" can be presented graphically, in  the  same  way  as  conflict 
+analysis  shows  the state contexts.  This is actually easy to do, but 
+the thought appeared in a discussion too close to the release date  of 
+the YACCable C++ grammar to be able to implement it.
+
+3)  Although  I  already  present what I believe is the most difficult 
+aspect of conflict  analysis  (i.e.,  identifying  the  contexts  that 
+induce  the  conflicts), there is a small section that is presented in 
+Pennello and DeRemer's paper that I omit.  I summarize this by  simply 
+asserting  (during  a conflict analysis context description) that upon 
+entering  a  state,  some  specific  terminal  token   can   "follow." 
+Basically,  by  walking  forward  through  the  parser,  it  is rather 
+straight forward to see *how* this can happen, but  I  don't  automate 
+the  procedure  currently.   Pennello  and  DeRemer  suggest that this 
+analysis should be integrated into the conflict analysis presentation, 
+but I believe it would clutter an already large section of y.output. I 
+expect that the "proof" of my assertions  should  be  presented  in  a 
+separate  section.   This  would prevent redundantly printing the same 
+explanation in several places.
+
+4) It is known that it is possible  to  split  states  in  an  LALR(1) 
+parser  so  that all LALR-only conflicts are removed.  I believe it is 
+possible to augment a grammar with additional  rules  (which  actually 
+are  never  used!)  that  induce  the  desired  state splitting in the 
+underlying LR(0) automaton, and hence the desired state  splitting  in 
+the  LALR(1) parser.  I am very close to this in my LALR-only conflict 
+analysis, but I am not quite there.  The advantages of  this  approach 
+to  users  who wish-to, need-to, or must use a specific LALR(1) parser 
+generator are rather significant.  The research toward this end  needs 
+to be finished.
+
+5) It is possible to, after splitting states by whatever method, build 
+a NQLR(1) parser (Not Quite LR(1)) that can parse every valid sentence 
+that  a  corresponding  LR(1)  parser  can  parse.   The one remaining 
+distinction between LR(1) and NQLR(1) parsing would be that the  LR(1) 
+parser  never  performs  any reduction when the lookahead token is not 
+eventually  "shiftable."  To  put  it  another  way,  NQLR(1)  parsers 
+commonly  perform  several reductions before realizing that there is a 
+syntax error afoot, whereas LR(1) parsers *never* perform a  reduction 
+in  the  face  of a syntax error.  I believe it is possible to enhance 
+the parsing engine (driven by NQLR(1) tables)  such  that  full  LR(1) 
+parsing  (re:  immediate  error  detection)  is  provided, but yet the 
+performance of the parser on valid sentences is *not* diminished  from 
+what  is  provided  by  a  classical LALR(1) parsing engine (i.e., the 
+byacc skeleton; or the yacpar that is used with yacc).   This  may  be 
+the  topic of another paper, or simply another product. (Late breaking 
+news: this error detection proposal (without the state splitting)  has 
+been implemented years ago by Corbett (author of byacc and bison), and 
+is  commonly  available as a parsing engine called "bison.hairy".  For 
+compatibility with yacc grammars, LR(0) consistent states must be made 
+to ignore lookahead during this process).
+
+5) The  transformations  that  I  performed  manually  to  create  the 
+YACCable  C++  grammar  can  generally  be automated.  As a result, it 
+should be possible to have a much more concise grammar, plus a set  of 
+"grammar  transformation" operations that result in the entire grammar 
+as it is released.  I expect that part of this will involve adopting a 
+grammar notation that uses regular expressions on the right hand  side 
+of  productions.   One  problem with a grammar that is as large as the 
+C++ grammar is that adding "action code" is  incredibly  tedious,  and 
+repetitive.   I  believe  that  these  two  problems  have  a unifying 
+solution that should allow actions  to  be  specified  as  "overloaded 
+functions",  wherein the parser generator would select the appropriate 
+function.  Moreover, these automatically selected action code segments 
+should be carried gracefully (i.e., correctly, with proper adjustments 
+to $n references) through the indicated grammatical transformations.
+
+To give  but  a  tiny  hint  of  the  usefulness,  consider  how  many 
+productions require the entry of action code like:
+
+	{ $$ = $2; }
+
+With knowledge of the types associated with elements of the right hand 
+side  as  well  as  that  of the left hand side, such action are often 
+"obvious." Note that yacc typically complains when the default  action 
+"$$=$1;"  leads to a type mismatch, but (in all implementations that I 
+know of) doesn't bother to provide a superior  (i.e.,  type  matching) 
+choice for a default action.
+
+
+
+
+A.1   Appendix   A:  Sample  LALR-only  ambiguous  grammar:  automatic 
+documentation
+
+JRYACC Cross Reference Tool, Version 1.00 pre-alpha
+Copyright (c) 1991, James Roskind, All Rights Reserved
+
+Reference Grammar
+
+$accept
+	: program $end   /* (0) */
+	;
+
+program
+	: '(' paren_fixer   /* (1) */
+	| '(' number ')'   /* (2) */
+	| paren_fixer ')'   /* (3) */
+	| number   /* (4) */
+	;
+
+paren_fixer
+	: DIGIT   /* (5) */
+	;
+
+number
+	: DIGIT   /* (6) */
+	;
+
+Alphabetized Grammar (alphabetically by tokens)
+
+
+%start program
+
+number
+	: DIGIT   /* (6) */
+	;
+
+paren_fixer
+	: DIGIT   /* (5) */
+	;
+
+program
+	: '(' number ')'   /* (2) */
+	| '(' paren_fixer   /* (1) */
+	| number   /* (4) */
+	| paren_fixer ')'   /* (3) */
+	;
+
+
+
+Sample Expansions for the 3 Non-terminal Tokens (alphabetically by token)
+
+ Name          Usage count   Minimal expansion
+
+number              2        DIGIT
+paren_fixer         2        DIGIT
+program             1        DIGIT
+
+
+Summary Descriptions of the 4 Terminal Tokens (alphabetically by token)
+
+ Name    Usage Count  Value  Precedence  Associativity
+
+'('           2         40       0            -          
+')'           2         41       0            -          
+DIGIT         2        257       0            -          
+error         0        256       0            -          
+
+
+Symbol and Grammar Cross Reference for the 7 Tokens
+	(alphabetically by token name, including expansion samples)
+	Sample expansions are also provided for the 6 rules
+
+'('
+	TERMINAL, used in 2 rules  value = <40>
+
+
+')'
+	TERMINAL, used in 2 rules  value = <41>
+
+
+DIGIT
+	TERMINAL, used in 2 rules  value = <257>
+
+
+error
+	TERMINAL, used in 0 rules  value = <256>
+
+
+number
+	NON-TERMINAL, used in 2 rules
+		number : DIGIT (6)
+			 DIGIT
+
+
+
+paren_fixer
+	NON-TERMINAL, used in 2 rules
+		paren_fixer : DIGIT (5)
+			 DIGIT
+
+
+
+program
+	NON-TERMINAL, used in 1 rule  re: $accept : program $end (0)
+		program : '(' number ')' (2)
+			 '(' DIGIT ')'
+
+		program : '(' paren_fixer (1)
+			 '(' DIGIT
+
+		program : number (4)
+			 DIGIT
+
+		program : paren_fixer ')' (3)
+			 DIGIT ')'
+
+
+
+
+
+
+Sample Stack Context and Accessing Sentences for each State
+
+state 0: 	0 incoming, 5 outgoing states; Never has a left context
+	Minimal stack:  0
+	symbols:	 $start
+	sentence:	 $start
+
+state 1: 	1 incoming, 3 outgoing states; entering via state 0:
+	Minimal stack:  0 1
+	symbols:	 $start '('
+	sentence:	 $start '('
+
+state 2: 	2 incoming, 0 outgoing states; entering via state 0:
+	Minimal stack:  0 ! 2
+	symbols:	 $start ! DIGIT
+	sentence:	 $start ! DIGIT
+
+state 3: 	1 incoming, 0 outgoing states; entering via state 0:
+	Minimal stack:  0 3
+	symbols:	 $start program
+	sentence:	 $start DIGIT
+
+state 4: 	1 incoming, 1 outgoing states; entering via state 0:
+	Minimal stack:  0 4
+	symbols:	 $start paren_fixer
+	sentence:	 $start DIGIT
+
+state 5: 	1 incoming, 0 outgoing states; entering via state 0:
+	Minimal stack:  0 5
+	symbols:	 $start number
+	sentence:	 $start DIGIT
+
+state 6: 	1 incoming, 0 outgoing states; entering via state 1:
+	Minimal stack:  0 1 6
+	symbols:	 $start '(' paren_fixer
+	sentence:	 $start '(' DIGIT
+
+state 7: 	1 incoming, 1 outgoing states; entering via state 1:
+	Minimal stack:  0 1 7
+	symbols:	 $start '(' number
+	sentence:	 $start '(' DIGIT
+
+state 8: 	1 incoming, 0 outgoing states; entering via state 4:
+	Minimal stack:  0 4 8
+	symbols:	 $start paren_fixer ')'
+	sentence:	 $start DIGIT ')'
+
+state 9: 	1 incoming, 0 outgoing states; entering via state 7:
+	Minimal stack:  0 1 7 9
+	symbols:	 $start '(' number ')'
+	sentence:	 $start '(' DIGIT ')'
+
+
+
+
+Concise list of conflicts:
+
+2: reduce/reduce conflict (reduce 5, reduce 6) on $end
+2: reduce/reduce conflict (reduce 5, reduce 6) on ')'
+	paren_fixer : DIGIT .  (5)
+	number : DIGIT .  (6)
+
+
+
+Canonical Description of Conflicts
+
+state 2:
+	Canonical Conflict Access:  $start DIGIT  .  $end    (2 reductions)
+
+state 2:
+	Canonical Conflict Access:  $start DIGIT  .  ')'    (2 reductions)
+
+Verbose listing of state transitions
+
+state 0
+	$accept : . program $end  (0)
+
+	'('  shift 1
+	DIGIT  shift 2
+	.  error
+
+	program  goto 3
+	paren_fixer  goto 4
+	number  goto 5
+
+
+state 1
+	program : '(' . paren_fixer  (1)
+	program : '(' . number ')'  (2)
+
+	DIGIT  shift 2
+	.  error
+
+	paren_fixer  goto 6
+	number  goto 7
+
+
+2: reduce/reduce conflict (reduce 5, reduce 6) on $end
+2: reduce/reduce conflict (reduce 5, reduce 6) on ')'
+state 2
+	paren_fixer : DIGIT .  (5)
+	number : DIGIT .  (6)
+
+	.  reduce 5
+
+
+state 3
+	$accept : program . $end  (0)
+
+	$end  accept
+
+
+state 4
+	program : paren_fixer . ')'  (3)
+
+	')'  shift 8
+	.  error
+
+
+state 5
+	program : number .  (4)
+
+	.  reduce 4
+
+
+state 6
+	program : '(' paren_fixer .  (1)
+
+	.  reduce 1
+
+
+state 7
+	program : '(' number . ')'  (2)
+
+	')'  shift 9
+	.  error
+
+
+state 8
+	program : paren_fixer ')' .  (3)
+
+	.  reduce 3
+
+
+state 9
+	program : '(' number ')' .  (2)
+
+	.  reduce 2
+
+
+Rules never reduced:
+	number : DIGIT (6)
+
+
+State 2 contains 2 reduce/reduce conflicts.
+
+
+5 terminals, 4 nonterminals
+7 grammar rules, 10 states
+
+
+
+Explanations for all reductions suggested in conflicts
+
+
+Demonstration(s) of reduction via rule (5) in state 2, when next token is <$end>
+	paren_fixer : DIGIT (5)
+
+
+From state 0
+ $start program      transitions to state 3, and then <$end> can follow.
+        '(' paren_fixer .  (1)
+	    DIGIT .  (5)
+
+	Following the 2 states below state 2, with lookahead <$end> REDUCE via (5) is possible.
+		Minimal stack context:	 0 1 2
+		Corresponding symbols:	 $start '(' DIGIT . $end
+		Sample sentence:	 $start '(' DIGIT . $end
+
+
+
+Demonstration(s) of reduction via rule (6) in state 2, when next token is <$end>
+	number : DIGIT (6)
+
+
+From state 0
+ $start program      transitions to state 3, and then <$end> can follow.
+        number .  (4)
+        DIGIT .  (6)
+
+	Following the 1 states below state 2, with lookahead <$end> REDUCE via (6) is possible.
+		Minimal stack context:	 0 2
+		Corresponding symbols:	 $start DIGIT . $end
+		Sample sentence:	 $start DIGIT . $end
+
+
+Summary of conflict contexts leading to state 2 and lookahead symbol <$end>
+	Possible reductions rules include (5,6)
+		paren_fixer : DIGIT (5)
+		number : DIGIT (6)
+	4 conflict contexts were found.
+
+--2+-0(6)
+   --1--0(5)
+
+LALR-only-conflicts are present.  Splittable states include: 2
+	3 conflict contexts (1 splittable state(s)) are LALR-only problems.
+
+LALR-only conflict contexts leading to state 2 and lookahead symbol <$end>
+	Possible reductions rules include (5,6)
+		paren_fixer : DIGIT (5)
+		number : DIGIT (6)
+	3 conflict contexts were found.
+
+	Unambiguous context tree is:
+
+--2+-0(6)    $start DIGIT
+   --1(5)    $start '(' DIGIT
+
+The following rules might split the problematic states:
+
+	$accept : DIGIT error ; /* SPLIT state(s) 2 following state 0 for rule(s) (6) out of (5,6) */
+		Minimal stack context:	 0 2
+		Corresponding symbols:	 $start DIGIT . $end
+		Sample sentence:	 $start DIGIT . $end
+
+	$accept : program DIGIT error ; /* SPLIT state(s) 2 following state 3 for rule(s) (5) out of (5,6) */
+		Minimal stack context:	 0 1 2
+		Corresponding symbols:	 $start '(' DIGIT . $end
+		Sample sentence:	 $start '(' DIGIT . $end
+
+
+Demonstration(s) of reduction via rule (5) in state 2, when next token is <')'>
+	paren_fixer : DIGIT (5)
+
+
+From state 0
+ $start paren_fixer      transitions to state 4, and then <')'> can follow.
+        DIGIT .  (5)
+
+	Following the 1 states below state 2, with lookahead <')'> REDUCE via (5) is possible.
+		Minimal stack context:	 0 2
+		Corresponding symbols:	 $start DIGIT . ')'
+		Sample sentence:	 $start DIGIT . ')'
+
+
+
+Demonstration(s) of reduction via rule (6) in state 2, when next token is <')'>
+	number : DIGIT (6)
+
+
+From state 1
+ $start '(' number      transitions to state 7, and then <')'> can follow.
+	    DIGIT .  (6)
+
+	Following the 1 states below state 2, with lookahead <')'> REDUCE via (6) is possible.
+		Minimal stack context:	 0 1 2
+		Corresponding symbols:	 $start '(' DIGIT . ')'
+		Sample sentence:	 $start '(' DIGIT . ')'
+
+
+Summary of conflict contexts leading to state 2 and lookahead symbol <')'>
+	Possible reductions rules include (5,6)
+		paren_fixer : DIGIT (5)
+		number : DIGIT (6)
+	3 conflict contexts were found.
+
+--2+-1(6)
+   --0(5)
+
+LALR-only-conflicts are present.  Splittable states include: 2
+	3 conflict contexts (1 splittable state(s)) are LALR-only problems.
+
+LALR-only conflict contexts leading to state 2 and lookahead symbol <')'>
+	Possible reductions rules include (5,6)
+		paren_fixer : DIGIT (5)
+		number : DIGIT (6)
+	3 conflict contexts were found.
+
+	Unambiguous context tree is:
+
+--2+-1(6)    $start '(' DIGIT
+   --0(5)    $start DIGIT
+
+The following rules might split the problematic states:
+
+	program : '(' DIGIT error ; /* SPLIT state(s) 2 following state 1 for rule(s) (6) out of (5,6) */
+		Minimal stack context:	 0 1 2
+		Corresponding symbols:	 $start '(' DIGIT . ')'
+		Sample sentence:	 $start '(' DIGIT . ')'
+
+	$accept : DIGIT error ; /* SPLIT state(s) 2 following state 0 for rule(s) (5) out of (5,6) */
+		Minimal stack context:	 0 2
+		Corresponding symbols:	 $start DIGIT . ')'
+		Sample sentence:	 $start DIGIT . ')'
+
+
+---end of file autodoc5.txt---

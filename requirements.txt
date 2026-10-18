@@ -1,0 +1,3 @@
+# The detector, UI and tests use only the Python standard library (3.11+).
+# System tools: Graphviz `dot` for run_ui.py; Bison optionally, for one test oracle.
+matplotlib>=3.8   # only roskind_approximation_graph.py (plots)

@@ -1,0 +1,5903 @@
+{
+  "name": "Roskind grammar release 2.0",
+  "translation_notice": "Translation of the original Yacc syntactic productions; not the executable compiler's full behavior.",
+  "source": {
+    "file": "cpp5.y",
+    "url": "https://blog.robertelder.org/jim-roskind-grammar/c%2B%2Bgrammar2.0.tar.Z",
+    "sha256": "3274a15770415e8d8a2be58466a6f949ba1af1c737382da941ee510885b53f71"
+  },
+  "source_notices": [
+    "/* Copyright (C) 1989-1991 James A. Roskind, All rights reserved. \n    This grammar was developed  and  written  by  James  A.  Roskind. \n    Copying  of  this  grammar  description, as a whole, is permitted \n    providing this notice is intact and applicable  in  all  complete \n    copies.   Translations as a whole to other parser generator input \n    languages  (or  grammar  description  languages)   is   permitted \n    provided  that  this  notice is intact and applicable in all such \n    copies,  along  with  a  disclaimer  that  the  contents  are   a \n    translation.   The reproduction of derived text, such as modified \n    versions of this grammar, or the output of parser generators,  is \n    permitted,  provided  the  resulting  work includes the copyright \n    notice \"Portions Copyright (c)  1989,  1990  James  A.  Roskind\". \n    Derived products, such as compilers, translators, browsers, etc., \n    that  use  this  grammar,  must also provide the notice \"Portions \n    Copyright  (c)  1989,  1990  James  A.  Roskind\"  in   a   manner \n    appropriate  to  the  utility,  and in keeping with copyright law \n    (e.g.: EITHER displayed when first invoked/executed; OR displayed \n    continuously on display terminal; OR via placement in the  object \n    code  in  form  readable in a printout, with or near the title of \n    the work, or at the end of the file).  No royalties, licenses  or \n    commissions  of  any  kind are required to copy this grammar, its \n    translations, or derivative products, when the copies are made in \n    compliance with this notice. Persons or corporations that do make \n    copies in compliance with this notice may charge  whatever  price \n    is  agreeable  to  a  buyer, for such copies or derivative works. \n    THIS GRAMMAR IS PROVIDED ``AS IS'' AND  WITHOUT  ANY  EXPRESS  OR \n    IMPLIED  WARRANTIES,  INCLUDING,  WITHOUT LIMITATION, THE IMPLIED \n    WARRANTIES  OF  MERCHANTABILITY  AND  FITNESS  FOR  A  PARTICULAR \n    PURPOSE.\n\n    James A. Roskind\n    Independent Consultant\n    516 Latania Palm Drive\n    Indialantic FL, 32903\n    (407)729-4348\n    jar@hq.ileaf.com\n\n\n    ---end of copyright notice---\n\nMOTIVATION-\n\nMy  goal  is  to  see  software  developers  adopt  this grammar as a \nstandard until such time as a better  standard  is  accessible.   The \nonly  way  to  get it to become a standard, is to be sure that people \nknow that derivations are based on a specific work.   The  intent  of \nreleasing  this  grammar is to provide a publicly accessible standard \ngrammar for C++.  The intent of the  copyright  notice  is  to  allow \narbitrary  commercial  and non-commercial use of the grammar, as long \nas reference is given to the original standard.  Without reference to \na specific standard, many alternative  grammars  would  develop.   By \nreferring  to  the  standard,  this grammar is given publicity, which \nshould lead to further use in compatible products and  systems.   The \nbenefits  of  such  a  standard  to  commercial  products  (browsers, \nbeautifiers, translators, compilers, ...) should be  obvious  to  the \ndevelopers,  in  that  other compatible products will emerge, and the \nvalue of all conforming products  will  rise.   Most  developers  are \naware  of  the  value  of  acquiring  a fairly complete grammar for a \nlanguage, and the copyright notice  (and  the  resulting  affiliation \nwith my work) should not be too high a price to pay.  By copyrighting \nthis  grammar,  I have some minor control over what this standard is, \nand I can (hopefully) keep it from degrading without my approval.   I \nwill  consistently  attempt  to  provide  upgraded  grammars that are \ncompliant  with  the  current  art,  and  the  ANSI   C++   Committee \nrecommendation  in  particular.   A developer is never prevented from \nmodifying the grammar to improve it in  whatever  way  is  seen  fit.  \nThere  is  also  no  restriction on the sale of copies, or derivative \nworks, providing the requests in the copyright notice are satisfied.\n\nIf you are not \"copying\" my work, but  are  rather  only  abstracting \nsome  of  the  standard,  an acknowledgment with references to such a \nstandard would be appreciated.  Specifically,  agreements  with  this \nstandard  as  to  the  resolution  of otherwise ambiguous constructs, \nshould be noted.\n\nSimply put: \"make whatever use you would like  of  the  grammar,  but \ninclude  the  ``portions  Copyright  ...''  as  a  reference  to this \nstandard.\"\n\n\n*/",
+    "Portions Copyright (c) 1989, 1990 James A. Roskind"
+  ],
+  "notes": [
+    "Start translation_unit describes a complete translation unit, including an empty one.",
+    "IDENTIFIER and TYPEDEFname remain distinct preclassified tokens; no lexer or symbol table is implemented here.",
+    "This historical grammar omits templates and exception handling."
+  ],
+  "format": "cfg-productions-v1",
+  "start": "translation_unit",
+  "terminals": [
+    "INTEGERconstant",
+    "FLOATINGconstant",
+    "OCTALconstant",
+    "HEXconstant",
+    "CHARACTERconstant",
+    "STRINGliteral",
+    "(",
+    ")",
+    "THIS",
+    "TYPEDEFname",
+    "OPERATOR",
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+    "^",
+    "&",
+    "|",
+    "~",
+    "!",
+    "<",
+    ">",
+    "LS",
+    "RS",
+    "ANDAND",
+    "OROR",
+    "ARROW",
+    "ARROWstar",
+    ".",
+    "DOTstar",
+    "ICR",
+    "DECR",
+    "LE",
+    "GE",
+    "EQ",
+    "NE",
+    "[",
+    "]",
+    "NEW",
+    "DELETE",
+    ",",
+    "CLCL",
+    "SIZEOF",
+    "?",
+    ":",
+    "=",
+    "MULTassign",
+    "DIVassign",
+    "MODassign",
+    "PLUSassign",
+    "MINUSassign",
+    "LSassign",
+    "RSassign",
+    "ANDassign",
+    "ERassign",
+    "ORassign",
+    ";",
+    "CONST",
+    "VOLATILE",
+    "EXTERN",
+    "TYPEDEF",
+    "STATIC",
+    "AUTO",
+    "REGISTER",
+    "FRIEND",
+    "OVERLOAD",
+    "INLINE",
+    "VIRTUAL",
+    "INT",
+    "CHAR",
+    "SHORT",
+    "LONG",
+    "FLOAT",
+    "DOUBLE",
+    "SIGNED",
+    "UNSIGNED",
+    "VOID",
+    "{",
+    "}",
+    "PUBLIC",
+    "PRIVATE",
+    "PROTECTED",
+    "STRUCT",
+    "UNION",
+    "CLASS",
+    "ENUM",
+    "IDENTIFIER",
+    "ELLIPSIS",
+    "CASE",
+    "DEFAULT",
+    "IF",
+    "ELSE",
+    "SWITCH",
+    "WHILE",
+    "DO",
+    "FOR",
+    "GOTO",
+    "CONTINUE",
+    "BREAK",
+    "RETURN"
+  ],
+  "nonterminals": [
+    "constant",
+    "string_literal_list",
+    "paren_identifier_declarator",
+    "primary_expression",
+    "non_elaborating_type_specifier",
+    "operator_function_name",
+    "operator_function_ptr_opt",
+    "any_operator",
+    "type_qualifier_list_opt",
+    "postfix_expression",
+    "member_name",
+    "argument_expression_list",
+    "unary_expression",
+    "allocation_expression",
+    "global_opt_scope_opt_operator_new",
+    "operator_new_type",
+    "operator_new_declarator_opt",
+    "operator_new_array_declarator",
+    "operator_new_initializer_opt",
+    "cast_expression",
+    "deallocation_expression",
+    "global_opt_scope_opt_delete",
+    "point_member_expression",
+    "multiplicative_expression",
+    "additive_expression",
+    "shift_expression",
+    "relational_expression",
+    "equality_expression",
+    "AND_expression",
+    "exclusive_OR_expression",
+    "inclusive_OR_expression",
+    "logical_AND_expression",
+    "logical_OR_expression",
+    "conditional_expression",
+    "assignment_expression",
+    "assignment_operator",
+    "comma_expression",
+    "constant_expression",
+    "comma_expression_opt",
+    "declaration",
+    "default_declaring_list",
+    "declaring_list",
+    "constructed_declarator",
+    "constructed_paren_typedef_declarator",
+    "constructed_parameter_typedef_declarator",
+    "constructed_identifier_declarator",
+    "nonunary_constructed_identifier_declarator",
+    "declaration_specifier",
+    "type_specifier",
+    "declaration_qualifier_list",
+    "type_qualifier_list",
+    "declaration_qualifier",
+    "type_qualifier",
+    "basic_declaration_specifier",
+    "basic_type_specifier",
+    "sue_declaration_specifier",
+    "sue_type_specifier_elaboration",
+    "sue_type_specifier",
+    "typedef_declaration_specifier",
+    "typedef_type_specifier",
+    "storage_class",
+    "basic_type_name",
+    "elaborated_type_name_elaboration",
+    "elaborated_type_name",
+    "aggregate_name_elaboration",
+    "aggregate_name",
+    "derivation_opt",
+    "derivation_list",
+    "parent_class",
+    "virtual_opt",
+    "access_specifier_opt",
+    "access_specifier",
+    "aggregate_key",
+    "member_declaration_list_opt",
+    "member_declaration",
+    "member_default_declaring_list",
+    "member_declaring_list",
+    "member_conflict_declaring_item",
+    "member_conflict_paren_declaring_item",
+    "member_conflict_paren_postfix_declaring_item",
+    "member_pure_opt",
+    "bit_field_declarator",
+    "bit_field_identifier_declarator",
+    "enum_name_elaboration",
+    "enum_name",
+    "global_opt_scope_opt_enum_key",
+    "enumerator_list",
+    "enumerator_list_no_trailing_comma",
+    "enumerator_name",
+    "enumerator_value_opt",
+    "parameter_type_list",
+    "old_parameter_type_list",
+    "named_parameter_type_list",
+    "comma_opt_ellipsis",
+    "parameter_list",
+    "parameter_declaration",
+    "non_casting_parameter_declaration",
+    "type_name",
+    "initializer_opt",
+    "initializer",
+    "initializer_group",
+    "initializer_list",
+    "statement",
+    "labeled_statement",
+    "compound_statement",
+    "declaration_list",
+    "statement_list_opt",
+    "expression_statement",
+    "selection_statement",
+    "iteration_statement",
+    "jump_statement",
+    "label",
+    "translation_unit",
+    "external_definition",
+    "linkage_specifier",
+    "function_declaration",
+    "function_definition",
+    "new_function_definition",
+    "old_function_definition",
+    "old_function_body",
+    "constructor_function_definition",
+    "constructor_function_declaration",
+    "constructor_function_in_class",
+    "constructor_parameter_list_and_body",
+    "constructor_conflicting_parameter_list_and_body",
+    "constructor_conflicting_typedef_declarator",
+    "constructor_init_list_opt",
+    "constructor_init_list",
+    "constructor_init",
+    "declarator",
+    "typedef_declarator",
+    "parameter_typedef_declarator",
+    "clean_typedef_declarator",
+    "clean_postfix_typedef_declarator",
+    "paren_typedef_declarator",
+    "postfix_paren_typedef_declarator",
+    "simple_paren_typedef_declarator",
+    "identifier_declarator",
+    "unary_identifier_declarator",
+    "postfix_identifier_declarator",
+    "old_function_declarator",
+    "postfix_old_function_declarator",
+    "old_postfixing_abstract_declarator",
+    "abstract_declarator",
+    "postfixing_abstract_declarator",
+    "array_abstract_declarator",
+    "unary_abstract_declarator",
+    "postfix_abstract_declarator",
+    "asterisk_or_ampersand",
+    "unary_modifier",
+    "scoping_name",
+    "scope",
+    "tag_name",
+    "global_scope",
+    "global_or_scope",
+    "scope_opt_identifier",
+    "scope_opt_complex_name",
+    "complex_name",
+    "global_opt_scope_opt_identifier",
+    "global_opt_scope_opt_complex_name",
+    "scoped_typedefname",
+    "global_or_scoped_typedefname",
+    "global_opt_scope_opt_typedefname"
+  ],
+  "productions": [
+    {
+      "lhs": "constant",
+      "rhs": [
+        "INTEGERconstant"
+      ],
+      "source_line": 308
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "FLOATINGconstant"
+      ],
+      "source_line": 309
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "OCTALconstant"
+      ],
+      "source_line": 313
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "HEXconstant"
+      ],
+      "source_line": 314
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "CHARACTERconstant"
+      ],
+      "source_line": 315
+    },
+    {
+      "lhs": "string_literal_list",
+      "rhs": [
+        "STRINGliteral"
+      ],
+      "source_line": 319
+    },
+    {
+      "lhs": "string_literal_list",
+      "rhs": [
+        "string_literal_list",
+        "STRINGliteral"
+      ],
+      "source_line": 320
+    },
+    {
+      "lhs": "paren_identifier_declarator",
+      "rhs": [
+        "scope_opt_identifier"
+      ],
+      "source_line": 359
+    },
+    {
+      "lhs": "paren_identifier_declarator",
+      "rhs": [
+        "scope_opt_complex_name"
+      ],
+      "source_line": 360
+    },
+    {
+      "lhs": "paren_identifier_declarator",
+      "rhs": [
+        "(",
+        "paren_identifier_declarator",
+        ")"
+      ],
+      "source_line": 361
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "global_opt_scope_opt_identifier"
+      ],
+      "source_line": 388
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "global_opt_scope_opt_complex_name"
+      ],
+      "source_line": 389
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "THIS"
+      ],
+      "source_line": 390
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "constant"
+      ],
+      "source_line": 391
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "string_literal_list"
+      ],
+      "source_line": 392
+    },
+    {
+      "lhs": "primary_expression",
+      "rhs": [
+        "(",
+        "comma_expression",
+        ")"
+      ],
+      "source_line": 393
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "sue_type_specifier"
+      ],
+      "source_line": 425
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "basic_type_specifier"
+      ],
+      "source_line": 426
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "typedef_type_specifier"
+      ],
+      "source_line": 427
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "basic_type_name"
+      ],
+      "source_line": 429
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 430
+    },
+    {
+      "lhs": "non_elaborating_type_specifier",
+      "rhs": [
+        "global_or_scoped_typedefname"
+      ],
+      "source_line": 431
+    },
+    {
+      "lhs": "operator_function_name",
+      "rhs": [
+        "OPERATOR",
+        "any_operator"
+      ],
+      "source_line": 440
+    },
+    {
+      "lhs": "operator_function_name",
+      "rhs": [
+        "OPERATOR",
+        "type_qualifier_list",
+        "operator_function_ptr_opt"
+      ],
+      "source_line": 441
+    },
+    {
+      "lhs": "operator_function_name",
+      "rhs": [
+        "OPERATOR",
+        "non_elaborating_type_specifier",
+        "operator_function_ptr_opt"
+      ],
+      "source_line": 442
+    },
+    {
+      "lhs": "operator_function_ptr_opt",
+      "rhs": [],
+      "source_line": 458
+    },
+    {
+      "lhs": "operator_function_ptr_opt",
+      "rhs": [
+        "unary_modifier",
+        "operator_function_ptr_opt"
+      ],
+      "source_line": 458
+    },
+    {
+      "lhs": "operator_function_ptr_opt",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "operator_function_ptr_opt"
+      ],
+      "source_line": 459
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "+"
+      ],
+      "source_line": 465
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "-"
+      ],
+      "source_line": 466
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "*"
+      ],
+      "source_line": 467
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "/"
+      ],
+      "source_line": 468
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "%"
+      ],
+      "source_line": 469
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "^"
+      ],
+      "source_line": 470
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "&"
+      ],
+      "source_line": 471
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "|"
+      ],
+      "source_line": 472
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "~"
+      ],
+      "source_line": 473
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "!"
+      ],
+      "source_line": 474
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "<"
+      ],
+      "source_line": 475
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        ">"
+      ],
+      "source_line": 476
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "LS"
+      ],
+      "source_line": 477
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "RS"
+      ],
+      "source_line": 478
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "ANDAND"
+      ],
+      "source_line": 479
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "OROR"
+      ],
+      "source_line": 480
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "ARROW"
+      ],
+      "source_line": 481
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "ARROWstar"
+      ],
+      "source_line": 482
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "."
+      ],
+      "source_line": 483
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "DOTstar"
+      ],
+      "source_line": 484
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "ICR"
+      ],
+      "source_line": 485
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "DECR"
+      ],
+      "source_line": 486
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "LE"
+      ],
+      "source_line": 487
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "GE"
+      ],
+      "source_line": 488
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "EQ"
+      ],
+      "source_line": 489
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "NE"
+      ],
+      "source_line": 490
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "assignment_operator"
+      ],
+      "source_line": 491
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "(",
+        ")"
+      ],
+      "source_line": 492
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "[",
+        "]"
+      ],
+      "source_line": 493
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "NEW"
+      ],
+      "source_line": 494
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        "DELETE"
+      ],
+      "source_line": 495
+    },
+    {
+      "lhs": "any_operator",
+      "rhs": [
+        ","
+      ],
+      "source_line": 496
+    },
+    {
+      "lhs": "type_qualifier_list_opt",
+      "rhs": [],
+      "source_line": 511
+    },
+    {
+      "lhs": "type_qualifier_list_opt",
+      "rhs": [
+        "type_qualifier_list"
+      ],
+      "source_line": 511
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "primary_expression"
+      ],
+      "source_line": 531
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "[",
+        "comma_expression",
+        "]"
+      ],
+      "source_line": 532
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "(",
+        ")"
+      ],
+      "source_line": 533
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 534
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        ".",
+        "member_name"
+      ],
+      "source_line": 535,
+      "omitted_actions": [
+        {
+          "after_symbols": 1,
+          "source_line": 535,
+          "source_end_line": 535
+        }
+      ]
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "ARROW",
+        "member_name"
+      ],
+      "source_line": 536,
+      "omitted_actions": [
+        {
+          "after_symbols": 1,
+          "source_line": 536,
+          "source_end_line": 536
+        }
+      ]
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "ICR"
+      ],
+      "source_line": 537
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "postfix_expression",
+        "DECR"
+      ],
+      "source_line": 538
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        ")"
+      ],
+      "source_line": 541
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "(",
+        ")"
+      ],
+      "source_line": 542
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 543
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 544
+    },
+    {
+      "lhs": "postfix_expression",
+      "rhs": [
+        "basic_type_name",
+        "(",
+        "assignment_expression",
+        ")"
+      ],
+      "source_line": 545
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "scope_opt_identifier"
+      ],
+      "source_line": 564
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "scope_opt_complex_name"
+      ],
+      "source_line": 565
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "basic_type_name",
+        "CLCL",
+        "~",
+        "basic_type_name"
+      ],
+      "source_line": 566
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "declaration_qualifier_list",
+        "CLCL",
+        "~",
+        "declaration_qualifier_list"
+      ],
+      "source_line": 568
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "type_qualifier_list",
+        "CLCL",
+        "~",
+        "type_qualifier_list"
+      ],
+      "source_line": 569
+    },
+    {
+      "lhs": "argument_expression_list",
+      "rhs": [
+        "assignment_expression"
+      ],
+      "source_line": 573
+    },
+    {
+      "lhs": "argument_expression_list",
+      "rhs": [
+        "argument_expression_list",
+        ",",
+        "assignment_expression"
+      ],
+      "source_line": 574
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "postfix_expression"
+      ],
+      "source_line": 578
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "ICR",
+        "unary_expression"
+      ],
+      "source_line": 579
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "DECR",
+        "unary_expression"
+      ],
+      "source_line": 580
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "cast_expression"
+      ],
+      "source_line": 581
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "-",
+        "cast_expression"
+      ],
+      "source_line": 582
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "+",
+        "cast_expression"
+      ],
+      "source_line": 583
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "~",
+        "cast_expression"
+      ],
+      "source_line": 584
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "!",
+        "cast_expression"
+      ],
+      "source_line": 585
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "SIZEOF",
+        "unary_expression"
+      ],
+      "source_line": 586
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "SIZEOF",
+        "(",
+        "type_name",
+        ")"
+      ],
+      "source_line": 587
+    },
+    {
+      "lhs": "unary_expression",
+      "rhs": [
+        "allocation_expression"
+      ],
+      "source_line": 588
+    },
+    {
+      "lhs": "allocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_operator_new",
+        "(",
+        "type_name",
+        ")",
+        "operator_new_initializer_opt"
+      ],
+      "source_line": 610
+    },
+    {
+      "lhs": "allocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_operator_new",
+        "(",
+        "argument_expression_list",
+        ")",
+        "(",
+        "type_name",
+        ")",
+        "operator_new_initializer_opt"
+      ],
+      "source_line": 613
+    },
+    {
+      "lhs": "allocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_operator_new",
+        "operator_new_type"
+      ],
+      "source_line": 617
+    },
+    {
+      "lhs": "allocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_operator_new",
+        "(",
+        "argument_expression_list",
+        ")",
+        "operator_new_type"
+      ],
+      "source_line": 618
+    },
+    {
+      "lhs": "global_opt_scope_opt_operator_new",
+      "rhs": [
+        "NEW"
+      ],
+      "source_line": 624
+    },
+    {
+      "lhs": "global_opt_scope_opt_operator_new",
+      "rhs": [
+        "global_or_scope",
+        "NEW"
+      ],
+      "source_line": 625
+    },
+    {
+      "lhs": "operator_new_type",
+      "rhs": [
+        "type_qualifier_list",
+        "operator_new_declarator_opt",
+        "operator_new_initializer_opt"
+      ],
+      "source_line": 629
+    },
+    {
+      "lhs": "operator_new_type",
+      "rhs": [
+        "non_elaborating_type_specifier",
+        "operator_new_declarator_opt",
+        "operator_new_initializer_opt"
+      ],
+      "source_line": 632
+    },
+    {
+      "lhs": "operator_new_declarator_opt",
+      "rhs": [],
+      "source_line": 642
+    },
+    {
+      "lhs": "operator_new_declarator_opt",
+      "rhs": [
+        "operator_new_array_declarator"
+      ],
+      "source_line": 642
+    },
+    {
+      "lhs": "operator_new_declarator_opt",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "operator_new_declarator_opt"
+      ],
+      "source_line": 643
+    },
+    {
+      "lhs": "operator_new_declarator_opt",
+      "rhs": [
+        "unary_modifier",
+        "operator_new_declarator_opt"
+      ],
+      "source_line": 644
+    },
+    {
+      "lhs": "operator_new_array_declarator",
+      "rhs": [
+        "[",
+        "]"
+      ],
+      "source_line": 648
+    },
+    {
+      "lhs": "operator_new_array_declarator",
+      "rhs": [
+        "[",
+        "comma_expression",
+        "]"
+      ],
+      "source_line": 649
+    },
+    {
+      "lhs": "operator_new_array_declarator",
+      "rhs": [
+        "operator_new_array_declarator",
+        "[",
+        "comma_expression",
+        "]"
+      ],
+      "source_line": 650
+    },
+    {
+      "lhs": "operator_new_initializer_opt",
+      "rhs": [],
+      "source_line": 655
+    },
+    {
+      "lhs": "operator_new_initializer_opt",
+      "rhs": [
+        "(",
+        ")"
+      ],
+      "source_line": 655
+    },
+    {
+      "lhs": "operator_new_initializer_opt",
+      "rhs": [
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 656
+    },
+    {
+      "lhs": "cast_expression",
+      "rhs": [
+        "unary_expression"
+      ],
+      "source_line": 660
+    },
+    {
+      "lhs": "cast_expression",
+      "rhs": [
+        "(",
+        "type_name",
+        ")",
+        "cast_expression"
+      ],
+      "source_line": 661
+    },
+    {
+      "lhs": "deallocation_expression",
+      "rhs": [
+        "cast_expression"
+      ],
+      "source_line": 667
+    },
+    {
+      "lhs": "deallocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_delete",
+        "deallocation_expression"
+      ],
+      "source_line": 668
+    },
+    {
+      "lhs": "deallocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_delete",
+        "[",
+        "comma_expression",
+        "]",
+        "deallocation_expression"
+      ],
+      "source_line": 669
+    },
+    {
+      "lhs": "deallocation_expression",
+      "rhs": [
+        "global_opt_scope_opt_delete",
+        "[",
+        "]",
+        "deallocation_expression"
+      ],
+      "source_line": 670
+    },
+    {
+      "lhs": "global_opt_scope_opt_delete",
+      "rhs": [
+        "DELETE"
+      ],
+      "source_line": 676
+    },
+    {
+      "lhs": "global_opt_scope_opt_delete",
+      "rhs": [
+        "global_or_scope",
+        "DELETE"
+      ],
+      "source_line": 677
+    },
+    {
+      "lhs": "point_member_expression",
+      "rhs": [
+        "deallocation_expression"
+      ],
+      "source_line": 683
+    },
+    {
+      "lhs": "point_member_expression",
+      "rhs": [
+        "point_member_expression",
+        "DOTstar",
+        "deallocation_expression"
+      ],
+      "source_line": 684
+    },
+    {
+      "lhs": "point_member_expression",
+      "rhs": [
+        "point_member_expression",
+        "ARROWstar",
+        "deallocation_expression"
+      ],
+      "source_line": 685
+    },
+    {
+      "lhs": "multiplicative_expression",
+      "rhs": [
+        "point_member_expression"
+      ],
+      "source_line": 689
+    },
+    {
+      "lhs": "multiplicative_expression",
+      "rhs": [
+        "multiplicative_expression",
+        "*",
+        "point_member_expression"
+      ],
+      "source_line": 690
+    },
+    {
+      "lhs": "multiplicative_expression",
+      "rhs": [
+        "multiplicative_expression",
+        "/",
+        "point_member_expression"
+      ],
+      "source_line": 691
+    },
+    {
+      "lhs": "multiplicative_expression",
+      "rhs": [
+        "multiplicative_expression",
+        "%",
+        "point_member_expression"
+      ],
+      "source_line": 692
+    },
+    {
+      "lhs": "additive_expression",
+      "rhs": [
+        "multiplicative_expression"
+      ],
+      "source_line": 696
+    },
+    {
+      "lhs": "additive_expression",
+      "rhs": [
+        "additive_expression",
+        "+",
+        "multiplicative_expression"
+      ],
+      "source_line": 697
+    },
+    {
+      "lhs": "additive_expression",
+      "rhs": [
+        "additive_expression",
+        "-",
+        "multiplicative_expression"
+      ],
+      "source_line": 698
+    },
+    {
+      "lhs": "shift_expression",
+      "rhs": [
+        "additive_expression"
+      ],
+      "source_line": 702
+    },
+    {
+      "lhs": "shift_expression",
+      "rhs": [
+        "shift_expression",
+        "LS",
+        "additive_expression"
+      ],
+      "source_line": 703
+    },
+    {
+      "lhs": "shift_expression",
+      "rhs": [
+        "shift_expression",
+        "RS",
+        "additive_expression"
+      ],
+      "source_line": 704
+    },
+    {
+      "lhs": "relational_expression",
+      "rhs": [
+        "shift_expression"
+      ],
+      "source_line": 708
+    },
+    {
+      "lhs": "relational_expression",
+      "rhs": [
+        "relational_expression",
+        "<",
+        "shift_expression"
+      ],
+      "source_line": 709
+    },
+    {
+      "lhs": "relational_expression",
+      "rhs": [
+        "relational_expression",
+        ">",
+        "shift_expression"
+      ],
+      "source_line": 710
+    },
+    {
+      "lhs": "relational_expression",
+      "rhs": [
+        "relational_expression",
+        "LE",
+        "shift_expression"
+      ],
+      "source_line": 711
+    },
+    {
+      "lhs": "relational_expression",
+      "rhs": [
+        "relational_expression",
+        "GE",
+        "shift_expression"
+      ],
+      "source_line": 712
+    },
+    {
+      "lhs": "equality_expression",
+      "rhs": [
+        "relational_expression"
+      ],
+      "source_line": 716
+    },
+    {
+      "lhs": "equality_expression",
+      "rhs": [
+        "equality_expression",
+        "EQ",
+        "relational_expression"
+      ],
+      "source_line": 717
+    },
+    {
+      "lhs": "equality_expression",
+      "rhs": [
+        "equality_expression",
+        "NE",
+        "relational_expression"
+      ],
+      "source_line": 718
+    },
+    {
+      "lhs": "AND_expression",
+      "rhs": [
+        "equality_expression"
+      ],
+      "source_line": 722
+    },
+    {
+      "lhs": "AND_expression",
+      "rhs": [
+        "AND_expression",
+        "&",
+        "equality_expression"
+      ],
+      "source_line": 723
+    },
+    {
+      "lhs": "exclusive_OR_expression",
+      "rhs": [
+        "AND_expression"
+      ],
+      "source_line": 727
+    },
+    {
+      "lhs": "exclusive_OR_expression",
+      "rhs": [
+        "exclusive_OR_expression",
+        "^",
+        "AND_expression"
+      ],
+      "source_line": 728
+    },
+    {
+      "lhs": "inclusive_OR_expression",
+      "rhs": [
+        "exclusive_OR_expression"
+      ],
+      "source_line": 732
+    },
+    {
+      "lhs": "inclusive_OR_expression",
+      "rhs": [
+        "inclusive_OR_expression",
+        "|",
+        "exclusive_OR_expression"
+      ],
+      "source_line": 733
+    },
+    {
+      "lhs": "logical_AND_expression",
+      "rhs": [
+        "inclusive_OR_expression"
+      ],
+      "source_line": 737
+    },
+    {
+      "lhs": "logical_AND_expression",
+      "rhs": [
+        "logical_AND_expression",
+        "ANDAND",
+        "inclusive_OR_expression"
+      ],
+      "source_line": 738
+    },
+    {
+      "lhs": "logical_OR_expression",
+      "rhs": [
+        "logical_AND_expression"
+      ],
+      "source_line": 742
+    },
+    {
+      "lhs": "logical_OR_expression",
+      "rhs": [
+        "logical_OR_expression",
+        "OROR",
+        "logical_AND_expression"
+      ],
+      "source_line": 743
+    },
+    {
+      "lhs": "conditional_expression",
+      "rhs": [
+        "logical_OR_expression"
+      ],
+      "source_line": 747
+    },
+    {
+      "lhs": "conditional_expression",
+      "rhs": [
+        "logical_OR_expression",
+        "?",
+        "comma_expression",
+        ":",
+        "conditional_expression"
+      ],
+      "source_line": 749
+    },
+    {
+      "lhs": "assignment_expression",
+      "rhs": [
+        "conditional_expression"
+      ],
+      "source_line": 754
+    },
+    {
+      "lhs": "assignment_expression",
+      "rhs": [
+        "unary_expression",
+        "assignment_operator",
+        "assignment_expression"
+      ],
+      "source_line": 755
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "="
+      ],
+      "source_line": 759
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "MULTassign"
+      ],
+      "source_line": 760
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "DIVassign"
+      ],
+      "source_line": 761
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "MODassign"
+      ],
+      "source_line": 762
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "PLUSassign"
+      ],
+      "source_line": 763
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "MINUSassign"
+      ],
+      "source_line": 764
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "LSassign"
+      ],
+      "source_line": 765
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "RSassign"
+      ],
+      "source_line": 766
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "ANDassign"
+      ],
+      "source_line": 767
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "ERassign"
+      ],
+      "source_line": 768
+    },
+    {
+      "lhs": "assignment_operator",
+      "rhs": [
+        "ORassign"
+      ],
+      "source_line": 769
+    },
+    {
+      "lhs": "comma_expression",
+      "rhs": [
+        "assignment_expression"
+      ],
+      "source_line": 773
+    },
+    {
+      "lhs": "comma_expression",
+      "rhs": [
+        "comma_expression",
+        ",",
+        "assignment_expression"
+      ],
+      "source_line": 774
+    },
+    {
+      "lhs": "constant_expression",
+      "rhs": [
+        "conditional_expression"
+      ],
+      "source_line": 778
+    },
+    {
+      "lhs": "comma_expression_opt",
+      "rhs": [],
+      "source_line": 785
+    },
+    {
+      "lhs": "comma_expression_opt",
+      "rhs": [
+        "comma_expression"
+      ],
+      "source_line": 785
+    },
+    {
+      "lhs": "declaration",
+      "rhs": [
+        "declaring_list",
+        ";"
+      ],
+      "source_line": 803
+    },
+    {
+      "lhs": "declaration",
+      "rhs": [
+        "default_declaring_list",
+        ";"
+      ],
+      "source_line": 804
+    },
+    {
+      "lhs": "declaration",
+      "rhs": [
+        "sue_declaration_specifier",
+        ";"
+      ],
+      "source_line": 805,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 805,
+          "source_end_line": 806
+        }
+      ]
+    },
+    {
+      "lhs": "declaration",
+      "rhs": [
+        "sue_type_specifier",
+        ";"
+      ],
+      "source_line": 807
+    },
+    {
+      "lhs": "declaration",
+      "rhs": [
+        "sue_type_specifier_elaboration",
+        ";"
+      ],
+      "source_line": 808
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "declaration_qualifier_list",
+        "identifier_declarator",
+        "initializer_opt"
+      ],
+      "source_line": 832,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 832,
+          "source_end_line": 832
+        }
+      ]
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "type_qualifier_list",
+        "identifier_declarator",
+        "initializer_opt"
+      ],
+      "source_line": 833,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 833,
+          "source_end_line": 833
+        }
+      ]
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "default_declaring_list",
+        ",",
+        "identifier_declarator",
+        "initializer_opt"
+      ],
+      "source_line": 834,
+      "omitted_actions": [
+        {
+          "after_symbols": 3,
+          "source_line": 834,
+          "source_end_line": 834
+        }
+      ]
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "declaration_qualifier_list",
+        "constructed_identifier_declarator"
+      ],
+      "source_line": 836
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "type_qualifier_list",
+        "constructed_identifier_declarator"
+      ],
+      "source_line": 837
+    },
+    {
+      "lhs": "default_declaring_list",
+      "rhs": [
+        "default_declaring_list",
+        ",",
+        "constructed_identifier_declarator"
+      ],
+      "source_line": 838
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "declaration_specifier",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 847,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 847,
+          "source_end_line": 847
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "type_specifier",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 848,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 848,
+          "source_end_line": 848
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "basic_type_name",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 849,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 849,
+          "source_end_line": 849
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "TYPEDEFname",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 850,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 850,
+          "source_end_line": 850
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 851,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 851,
+          "source_end_line": 851
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "declaring_list",
+        ",",
+        "declarator",
+        "initializer_opt"
+      ],
+      "source_line": 852,
+      "omitted_actions": [
+        {
+          "after_symbols": 3,
+          "source_line": 852,
+          "source_end_line": 852
+        }
+      ]
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "declaration_specifier",
+        "constructed_declarator"
+      ],
+      "source_line": 854
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "type_specifier",
+        "constructed_declarator"
+      ],
+      "source_line": 855
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "basic_type_name",
+        "constructed_declarator"
+      ],
+      "source_line": 856
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "TYPEDEFname",
+        "constructed_declarator"
+      ],
+      "source_line": 857
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "constructed_declarator"
+      ],
+      "source_line": 858
+    },
+    {
+      "lhs": "declaring_list",
+      "rhs": [
+        "declaring_list",
+        ",",
+        "constructed_declarator"
+      ],
+      "source_line": 859
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "nonunary_constructed_identifier_declarator"
+      ],
+      "source_line": 886
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "constructed_paren_typedef_declarator"
+      ],
+      "source_line": 887
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "simple_paren_typedef_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 888
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "simple_paren_typedef_declarator",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 890
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "constructed_parameter_typedef_declarator"
+      ],
+      "source_line": 893
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "constructed_declarator"
+      ],
+      "source_line": 894
+    },
+    {
+      "lhs": "constructed_declarator",
+      "rhs": [
+        "unary_modifier",
+        "constructed_declarator"
+      ],
+      "source_line": 895
+    },
+    {
+      "lhs": "constructed_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 899
+    },
+    {
+      "lhs": "constructed_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 902
+    },
+    {
+      "lhs": "constructed_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "simple_paren_typedef_declarator",
+        "postfixing_abstract_declarator",
+        ")",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 905
+    },
+    {
+      "lhs": "constructed_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 908
+    },
+    {
+      "lhs": "constructed_parameter_typedef_declarator",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 914
+    },
+    {
+      "lhs": "constructed_parameter_typedef_declarator",
+      "rhs": [
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 916
+    },
+    {
+      "lhs": "constructed_parameter_typedef_declarator",
+      "rhs": [
+        "(",
+        "clean_typedef_declarator",
+        ")",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 919
+    },
+    {
+      "lhs": "constructed_parameter_typedef_declarator",
+      "rhs": [
+        "(",
+        "clean_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 922
+    },
+    {
+      "lhs": "constructed_identifier_declarator",
+      "rhs": [
+        "nonunary_constructed_identifier_declarator"
+      ],
+      "source_line": 928
+    },
+    {
+      "lhs": "constructed_identifier_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "constructed_identifier_declarator"
+      ],
+      "source_line": 929
+    },
+    {
+      "lhs": "constructed_identifier_declarator",
+      "rhs": [
+        "unary_modifier",
+        "constructed_identifier_declarator"
+      ],
+      "source_line": 930
+    },
+    {
+      "lhs": "nonunary_constructed_identifier_declarator",
+      "rhs": [
+        "paren_identifier_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 940
+    },
+    {
+      "lhs": "nonunary_constructed_identifier_declarator",
+      "rhs": [
+        "paren_identifier_declarator",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 942
+    },
+    {
+      "lhs": "nonunary_constructed_identifier_declarator",
+      "rhs": [
+        "(",
+        "unary_identifier_declarator",
+        ")",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 945
+    },
+    {
+      "lhs": "nonunary_constructed_identifier_declarator",
+      "rhs": [
+        "(",
+        "unary_identifier_declarator",
+        ")",
+        "postfixing_abstract_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 948
+    },
+    {
+      "lhs": "declaration_specifier",
+      "rhs": [
+        "basic_declaration_specifier"
+      ],
+      "source_line": 954
+    },
+    {
+      "lhs": "declaration_specifier",
+      "rhs": [
+        "sue_declaration_specifier"
+      ],
+      "source_line": 955
+    },
+    {
+      "lhs": "declaration_specifier",
+      "rhs": [
+        "typedef_declaration_specifier"
+      ],
+      "source_line": 956
+    },
+    {
+      "lhs": "type_specifier",
+      "rhs": [
+        "basic_type_specifier"
+      ],
+      "source_line": 960
+    },
+    {
+      "lhs": "type_specifier",
+      "rhs": [
+        "sue_type_specifier"
+      ],
+      "source_line": 961
+    },
+    {
+      "lhs": "type_specifier",
+      "rhs": [
+        "sue_type_specifier_elaboration"
+      ],
+      "source_line": 962
+    },
+    {
+      "lhs": "type_specifier",
+      "rhs": [
+        "typedef_type_specifier"
+      ],
+      "source_line": 963
+    },
+    {
+      "lhs": "declaration_qualifier_list",
+      "rhs": [
+        "storage_class"
+      ],
+      "source_line": 967
+    },
+    {
+      "lhs": "declaration_qualifier_list",
+      "rhs": [
+        "type_qualifier_list",
+        "storage_class"
+      ],
+      "source_line": 968
+    },
+    {
+      "lhs": "declaration_qualifier_list",
+      "rhs": [
+        "declaration_qualifier_list",
+        "declaration_qualifier"
+      ],
+      "source_line": 969
+    },
+    {
+      "lhs": "type_qualifier_list",
+      "rhs": [
+        "type_qualifier"
+      ],
+      "source_line": 973
+    },
+    {
+      "lhs": "type_qualifier_list",
+      "rhs": [
+        "type_qualifier_list",
+        "type_qualifier"
+      ],
+      "source_line": 974
+    },
+    {
+      "lhs": "declaration_qualifier",
+      "rhs": [
+        "storage_class"
+      ],
+      "source_line": 978
+    },
+    {
+      "lhs": "declaration_qualifier",
+      "rhs": [
+        "type_qualifier"
+      ],
+      "source_line": 979
+    },
+    {
+      "lhs": "type_qualifier",
+      "rhs": [
+        "CONST"
+      ],
+      "source_line": 983
+    },
+    {
+      "lhs": "type_qualifier",
+      "rhs": [
+        "VOLATILE"
+      ],
+      "source_line": 984
+    },
+    {
+      "lhs": "basic_declaration_specifier",
+      "rhs": [
+        "declaration_qualifier_list",
+        "basic_type_name"
+      ],
+      "source_line": 988
+    },
+    {
+      "lhs": "basic_declaration_specifier",
+      "rhs": [
+        "basic_type_specifier",
+        "storage_class"
+      ],
+      "source_line": 989
+    },
+    {
+      "lhs": "basic_declaration_specifier",
+      "rhs": [
+        "basic_type_name",
+        "storage_class"
+      ],
+      "source_line": 990
+    },
+    {
+      "lhs": "basic_declaration_specifier",
+      "rhs": [
+        "basic_declaration_specifier",
+        "declaration_qualifier"
+      ],
+      "source_line": 991
+    },
+    {
+      "lhs": "basic_declaration_specifier",
+      "rhs": [
+        "basic_declaration_specifier",
+        "basic_type_name"
+      ],
+      "source_line": 992
+    },
+    {
+      "lhs": "basic_type_specifier",
+      "rhs": [
+        "type_qualifier_list",
+        "basic_type_name"
+      ],
+      "source_line": 996
+    },
+    {
+      "lhs": "basic_type_specifier",
+      "rhs": [
+        "basic_type_name",
+        "basic_type_name"
+      ],
+      "source_line": 997
+    },
+    {
+      "lhs": "basic_type_specifier",
+      "rhs": [
+        "basic_type_name",
+        "type_qualifier"
+      ],
+      "source_line": 998
+    },
+    {
+      "lhs": "basic_type_specifier",
+      "rhs": [
+        "basic_type_specifier",
+        "type_qualifier"
+      ],
+      "source_line": 999
+    },
+    {
+      "lhs": "basic_type_specifier",
+      "rhs": [
+        "basic_type_specifier",
+        "basic_type_name"
+      ],
+      "source_line": 1000
+    },
+    {
+      "lhs": "sue_declaration_specifier",
+      "rhs": [
+        "declaration_qualifier_list",
+        "elaborated_type_name"
+      ],
+      "source_line": 1004
+    },
+    {
+      "lhs": "sue_declaration_specifier",
+      "rhs": [
+        "declaration_qualifier_list",
+        "elaborated_type_name_elaboration"
+      ],
+      "source_line": 1005
+    },
+    {
+      "lhs": "sue_declaration_specifier",
+      "rhs": [
+        "sue_type_specifier",
+        "storage_class"
+      ],
+      "source_line": 1006
+    },
+    {
+      "lhs": "sue_declaration_specifier",
+      "rhs": [
+        "sue_type_specifier_elaboration",
+        "storage_class"
+      ],
+      "source_line": 1007
+    },
+    {
+      "lhs": "sue_declaration_specifier",
+      "rhs": [
+        "sue_declaration_specifier",
+        "declaration_qualifier"
+      ],
+      "source_line": 1008
+    },
+    {
+      "lhs": "sue_type_specifier_elaboration",
+      "rhs": [
+        "elaborated_type_name_elaboration"
+      ],
+      "source_line": 1012
+    },
+    {
+      "lhs": "sue_type_specifier_elaboration",
+      "rhs": [
+        "type_qualifier_list",
+        "elaborated_type_name_elaboration"
+      ],
+      "source_line": 1013
+    },
+    {
+      "lhs": "sue_type_specifier_elaboration",
+      "rhs": [
+        "sue_type_specifier_elaboration",
+        "type_qualifier"
+      ],
+      "source_line": 1014
+    },
+    {
+      "lhs": "sue_type_specifier",
+      "rhs": [
+        "elaborated_type_name"
+      ],
+      "source_line": 1018
+    },
+    {
+      "lhs": "sue_type_specifier",
+      "rhs": [
+        "type_qualifier_list",
+        "elaborated_type_name"
+      ],
+      "source_line": 1019
+    },
+    {
+      "lhs": "sue_type_specifier",
+      "rhs": [
+        "sue_type_specifier",
+        "type_qualifier"
+      ],
+      "source_line": 1020
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "declaration_qualifier_list",
+        "TYPEDEFname"
+      ],
+      "source_line": 1024
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "declaration_qualifier_list",
+        "global_or_scoped_typedefname"
+      ],
+      "source_line": 1025
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "typedef_type_specifier",
+        "storage_class"
+      ],
+      "source_line": 1027
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "TYPEDEFname",
+        "storage_class"
+      ],
+      "source_line": 1028
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "storage_class"
+      ],
+      "source_line": 1029
+    },
+    {
+      "lhs": "typedef_declaration_specifier",
+      "rhs": [
+        "typedef_declaration_specifier",
+        "declaration_qualifier"
+      ],
+      "source_line": 1031
+    },
+    {
+      "lhs": "typedef_type_specifier",
+      "rhs": [
+        "type_qualifier_list",
+        "TYPEDEFname"
+      ],
+      "source_line": 1035
+    },
+    {
+      "lhs": "typedef_type_specifier",
+      "rhs": [
+        "type_qualifier_list",
+        "global_or_scoped_typedefname"
+      ],
+      "source_line": 1036
+    },
+    {
+      "lhs": "typedef_type_specifier",
+      "rhs": [
+        "TYPEDEFname",
+        "type_qualifier"
+      ],
+      "source_line": 1038
+    },
+    {
+      "lhs": "typedef_type_specifier",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "type_qualifier"
+      ],
+      "source_line": 1039
+    },
+    {
+      "lhs": "typedef_type_specifier",
+      "rhs": [
+        "typedef_type_specifier",
+        "type_qualifier"
+      ],
+      "source_line": 1041
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "EXTERN"
+      ],
+      "source_line": 1070
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "TYPEDEF"
+      ],
+      "source_line": 1071
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "STATIC"
+      ],
+      "source_line": 1072
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "AUTO"
+      ],
+      "source_line": 1073
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "REGISTER"
+      ],
+      "source_line": 1074
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "FRIEND"
+      ],
+      "source_line": 1075
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "OVERLOAD"
+      ],
+      "source_line": 1076
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "INLINE"
+      ],
+      "source_line": 1077
+    },
+    {
+      "lhs": "storage_class",
+      "rhs": [
+        "VIRTUAL"
+      ],
+      "source_line": 1078
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "INT"
+      ],
+      "source_line": 1082
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "CHAR"
+      ],
+      "source_line": 1083
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "SHORT"
+      ],
+      "source_line": 1084
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "LONG"
+      ],
+      "source_line": 1085
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "FLOAT"
+      ],
+      "source_line": 1086
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "DOUBLE"
+      ],
+      "source_line": 1087
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "SIGNED"
+      ],
+      "source_line": 1088
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "UNSIGNED"
+      ],
+      "source_line": 1089
+    },
+    {
+      "lhs": "basic_type_name",
+      "rhs": [
+        "VOID"
+      ],
+      "source_line": 1090
+    },
+    {
+      "lhs": "elaborated_type_name_elaboration",
+      "rhs": [
+        "aggregate_name_elaboration"
+      ],
+      "source_line": 1094
+    },
+    {
+      "lhs": "elaborated_type_name_elaboration",
+      "rhs": [
+        "enum_name_elaboration"
+      ],
+      "source_line": 1095
+    },
+    {
+      "lhs": "elaborated_type_name",
+      "rhs": [
+        "aggregate_name"
+      ],
+      "source_line": 1099
+    },
+    {
+      "lhs": "elaborated_type_name",
+      "rhs": [
+        "enum_name"
+      ],
+      "source_line": 1100
+    },
+    {
+      "lhs": "aggregate_name_elaboration",
+      "rhs": [
+        "aggregate_name",
+        "derivation_opt",
+        "{",
+        "member_declaration_list_opt",
+        "}"
+      ],
+      "source_line": 1117
+    },
+    {
+      "lhs": "aggregate_name_elaboration",
+      "rhs": [
+        "aggregate_key",
+        "derivation_opt",
+        "{",
+        "member_declaration_list_opt",
+        "}"
+      ],
+      "source_line": 1118
+    },
+    {
+      "lhs": "aggregate_name",
+      "rhs": [
+        "aggregate_key",
+        "tag_name"
+      ],
+      "source_line": 1137
+    },
+    {
+      "lhs": "aggregate_name",
+      "rhs": [
+        "global_scope",
+        "scope",
+        "aggregate_key",
+        "tag_name"
+      ],
+      "source_line": 1138
+    },
+    {
+      "lhs": "aggregate_name",
+      "rhs": [
+        "global_scope",
+        "aggregate_key",
+        "tag_name"
+      ],
+      "source_line": 1139
+    },
+    {
+      "lhs": "aggregate_name",
+      "rhs": [
+        "scope",
+        "aggregate_key",
+        "tag_name"
+      ],
+      "source_line": 1140
+    },
+    {
+      "lhs": "derivation_opt",
+      "rhs": [],
+      "source_line": 1145
+    },
+    {
+      "lhs": "derivation_opt",
+      "rhs": [
+        ":",
+        "derivation_list"
+      ],
+      "source_line": 1145
+    },
+    {
+      "lhs": "derivation_list",
+      "rhs": [
+        "parent_class"
+      ],
+      "source_line": 1149
+    },
+    {
+      "lhs": "derivation_list",
+      "rhs": [
+        "derivation_list",
+        ",",
+        "parent_class"
+      ],
+      "source_line": 1150
+    },
+    {
+      "lhs": "parent_class",
+      "rhs": [
+        "global_opt_scope_opt_typedefname"
+      ],
+      "source_line": 1154
+    },
+    {
+      "lhs": "parent_class",
+      "rhs": [
+        "VIRTUAL",
+        "access_specifier_opt",
+        "global_opt_scope_opt_typedefname"
+      ],
+      "source_line": 1155
+    },
+    {
+      "lhs": "parent_class",
+      "rhs": [
+        "access_specifier",
+        "virtual_opt",
+        "global_opt_scope_opt_typedefname"
+      ],
+      "source_line": 1156
+    },
+    {
+      "lhs": "virtual_opt",
+      "rhs": [],
+      "source_line": 1161
+    },
+    {
+      "lhs": "virtual_opt",
+      "rhs": [
+        "VIRTUAL"
+      ],
+      "source_line": 1161
+    },
+    {
+      "lhs": "access_specifier_opt",
+      "rhs": [],
+      "source_line": 1166
+    },
+    {
+      "lhs": "access_specifier_opt",
+      "rhs": [
+        "access_specifier"
+      ],
+      "source_line": 1166
+    },
+    {
+      "lhs": "access_specifier",
+      "rhs": [
+        "PUBLIC"
+      ],
+      "source_line": 1170
+    },
+    {
+      "lhs": "access_specifier",
+      "rhs": [
+        "PRIVATE"
+      ],
+      "source_line": 1171
+    },
+    {
+      "lhs": "access_specifier",
+      "rhs": [
+        "PROTECTED"
+      ],
+      "source_line": 1172
+    },
+    {
+      "lhs": "aggregate_key",
+      "rhs": [
+        "STRUCT"
+      ],
+      "source_line": 1176
+    },
+    {
+      "lhs": "aggregate_key",
+      "rhs": [
+        "UNION"
+      ],
+      "source_line": 1177
+    },
+    {
+      "lhs": "aggregate_key",
+      "rhs": [
+        "CLASS"
+      ],
+      "source_line": 1178
+    },
+    {
+      "lhs": "member_declaration_list_opt",
+      "rhs": [],
+      "source_line": 1189
+    },
+    {
+      "lhs": "member_declaration_list_opt",
+      "rhs": [
+        "member_declaration_list_opt",
+        "member_declaration"
+      ],
+      "source_line": 1189
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "member_declaring_list",
+        ";"
+      ],
+      "source_line": 1193
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "member_default_declaring_list",
+        ";"
+      ],
+      "source_line": 1194
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "access_specifier",
+        ":"
+      ],
+      "source_line": 1196
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "new_function_definition"
+      ],
+      "source_line": 1198
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "constructor_function_in_class"
+      ],
+      "source_line": 1199
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "sue_type_specifier",
+        ";"
+      ],
+      "source_line": 1201
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "sue_type_specifier_elaboration",
+        ";"
+      ],
+      "source_line": 1202
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "identifier_declarator",
+        ";"
+      ],
+      "source_line": 1203
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "typedef_declaration_specifier",
+        ";"
+      ],
+      "source_line": 1208
+    },
+    {
+      "lhs": "member_declaration",
+      "rhs": [
+        "sue_declaration_specifier",
+        ";"
+      ],
+      "source_line": 1209
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "type_qualifier_list",
+        "identifier_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1213
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "declaration_qualifier_list",
+        "identifier_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1216
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "member_default_declaring_list",
+        ",",
+        "identifier_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1219
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "type_qualifier_list",
+        "bit_field_identifier_declarator"
+      ],
+      "source_line": 1222
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "declaration_qualifier_list",
+        "bit_field_identifier_declarator"
+      ],
+      "source_line": 1223
+    },
+    {
+      "lhs": "member_default_declaring_list",
+      "rhs": [
+        "member_default_declaring_list",
+        ",",
+        "bit_field_identifier_declarator"
+      ],
+      "source_line": 1224
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "type_specifier",
+        "declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1236
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "basic_type_name",
+        "declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1237
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1239
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "member_conflict_declaring_item"
+      ],
+      "source_line": 1240
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "member_declaring_list",
+        ",",
+        "declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1241
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "type_specifier",
+        "bit_field_declarator"
+      ],
+      "source_line": 1243
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "basic_type_name",
+        "bit_field_declarator"
+      ],
+      "source_line": 1244
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "TYPEDEFname",
+        "bit_field_declarator"
+      ],
+      "source_line": 1245
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "bit_field_declarator"
+      ],
+      "source_line": 1246
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "declaration_specifier",
+        "bit_field_declarator"
+      ],
+      "source_line": 1247
+    },
+    {
+      "lhs": "member_declaring_list",
+      "rhs": [
+        "member_declaring_list",
+        ",",
+        "bit_field_declarator"
+      ],
+      "source_line": 1248
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "identifier_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1260
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "parameter_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1261
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "simple_paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1262
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "identifier_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1264
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "parameter_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1265
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "simple_paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1266
+    },
+    {
+      "lhs": "member_conflict_declaring_item",
+      "rhs": [
+        "member_conflict_paren_declaring_item"
+      ],
+      "source_line": 1268
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "asterisk_or_ampersand",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1280
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "unary_modifier",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1282
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "asterisk_or_ampersand",
+        "(",
+        "TYPEDEFname",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1284
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "unary_modifier",
+        "(",
+        "TYPEDEFname",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1286
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "asterisk_or_ampersand",
+        "paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1288
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "unary_modifier",
+        "paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1290
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "asterisk_or_ampersand",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1293
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "unary_modifier",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1295
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "asterisk_or_ampersand",
+        "(",
+        "TYPEDEFname",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1297
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "unary_modifier",
+        "(",
+        "TYPEDEFname",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1299
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "asterisk_or_ampersand",
+        "paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1301
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "unary_modifier",
+        "paren_typedef_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1303
+    },
+    {
+      "lhs": "member_conflict_paren_declaring_item",
+      "rhs": [
+        "member_conflict_paren_postfix_declaring_item"
+      ],
+      "source_line": 1306
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1318
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "simple_paren_typedef_declarator",
+        "postfixing_abstract_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1320
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1322
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1324
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1327
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "(",
+        "simple_paren_typedef_declarator",
+        "postfixing_abstract_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1329
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")",
+        "member_pure_opt"
+      ],
+      "source_line": 1331
+    },
+    {
+      "lhs": "member_conflict_paren_postfix_declaring_item",
+      "rhs": [
+        "declaration_specifier",
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator",
+        "member_pure_opt"
+      ],
+      "source_line": 1333
+    },
+    {
+      "lhs": "member_pure_opt",
+      "rhs": [],
+      "source_line": 1342
+    },
+    {
+      "lhs": "member_pure_opt",
+      "rhs": [
+        "=",
+        "OCTALconstant"
+      ],
+      "source_line": 1342
+    },
+    {
+      "lhs": "bit_field_declarator",
+      "rhs": [
+        "bit_field_identifier_declarator"
+      ],
+      "source_line": 1357
+    },
+    {
+      "lhs": "bit_field_declarator",
+      "rhs": [
+        "TYPEDEFname",
+        ":",
+        "constant_expression"
+      ],
+      "source_line": 1358,
+      "omitted_actions": [
+        {
+          "after_symbols": 1,
+          "source_line": 1358,
+          "source_end_line": 1358
+        }
+      ]
+    },
+    {
+      "lhs": "bit_field_identifier_declarator",
+      "rhs": [
+        ":",
+        "constant_expression"
+      ],
+      "source_line": 1370
+    },
+    {
+      "lhs": "bit_field_identifier_declarator",
+      "rhs": [
+        "identifier_declarator",
+        ":",
+        "constant_expression"
+      ],
+      "source_line": 1371,
+      "omitted_actions": [
+        {
+          "after_symbols": 1,
+          "source_line": 1371,
+          "source_end_line": 1371
+        }
+      ]
+    },
+    {
+      "lhs": "enum_name_elaboration",
+      "rhs": [
+        "global_opt_scope_opt_enum_key",
+        "{",
+        "enumerator_list",
+        "}"
+      ],
+      "source_line": 1375
+    },
+    {
+      "lhs": "enum_name_elaboration",
+      "rhs": [
+        "enum_name",
+        "{",
+        "enumerator_list",
+        "}"
+      ],
+      "source_line": 1376
+    },
+    {
+      "lhs": "enum_name",
+      "rhs": [
+        "global_opt_scope_opt_enum_key",
+        "tag_name"
+      ],
+      "source_line": 1391
+    },
+    {
+      "lhs": "global_opt_scope_opt_enum_key",
+      "rhs": [
+        "ENUM"
+      ],
+      "source_line": 1395
+    },
+    {
+      "lhs": "global_opt_scope_opt_enum_key",
+      "rhs": [
+        "global_or_scope",
+        "ENUM"
+      ],
+      "source_line": 1396
+    },
+    {
+      "lhs": "enumerator_list",
+      "rhs": [
+        "enumerator_list_no_trailing_comma"
+      ],
+      "source_line": 1400
+    },
+    {
+      "lhs": "enumerator_list",
+      "rhs": [
+        "enumerator_list_no_trailing_comma",
+        ","
+      ],
+      "source_line": 1401
+    },
+    {
+      "lhs": "enumerator_list_no_trailing_comma",
+      "rhs": [
+        "enumerator_name",
+        "enumerator_value_opt"
+      ],
+      "source_line": 1415
+    },
+    {
+      "lhs": "enumerator_list_no_trailing_comma",
+      "rhs": [
+        "enumerator_list_no_trailing_comma",
+        ",",
+        "enumerator_name",
+        "enumerator_value_opt"
+      ],
+      "source_line": 1416
+    },
+    {
+      "lhs": "enumerator_name",
+      "rhs": [
+        "IDENTIFIER"
+      ],
+      "source_line": 1420
+    },
+    {
+      "lhs": "enumerator_name",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 1421
+    },
+    {
+      "lhs": "enumerator_value_opt",
+      "rhs": [],
+      "source_line": 1426
+    },
+    {
+      "lhs": "enumerator_value_opt",
+      "rhs": [
+        "=",
+        "constant_expression"
+      ],
+      "source_line": 1426
+    },
+    {
+      "lhs": "parameter_type_list",
+      "rhs": [
+        "(",
+        ")",
+        "type_qualifier_list_opt"
+      ],
+      "source_line": 1435
+    },
+    {
+      "lhs": "parameter_type_list",
+      "rhs": [
+        "(",
+        "type_name",
+        ")",
+        "type_qualifier_list_opt"
+      ],
+      "source_line": 1436
+    },
+    {
+      "lhs": "parameter_type_list",
+      "rhs": [
+        "(",
+        "type_name",
+        "initializer",
+        ")",
+        "type_qualifier_list_opt"
+      ],
+      "source_line": 1437
+    },
+    {
+      "lhs": "parameter_type_list",
+      "rhs": [
+        "(",
+        "named_parameter_type_list",
+        ")",
+        "type_qualifier_list_opt"
+      ],
+      "source_line": 1438
+    },
+    {
+      "lhs": "old_parameter_type_list",
+      "rhs": [
+        "(",
+        ")"
+      ],
+      "source_line": 1463
+    },
+    {
+      "lhs": "old_parameter_type_list",
+      "rhs": [
+        "(",
+        "type_name",
+        ")"
+      ],
+      "source_line": 1464
+    },
+    {
+      "lhs": "old_parameter_type_list",
+      "rhs": [
+        "(",
+        "type_name",
+        "initializer",
+        ")"
+      ],
+      "source_line": 1465
+    },
+    {
+      "lhs": "old_parameter_type_list",
+      "rhs": [
+        "(",
+        "named_parameter_type_list",
+        ")"
+      ],
+      "source_line": 1466
+    },
+    {
+      "lhs": "named_parameter_type_list",
+      "rhs": [
+        "parameter_list"
+      ],
+      "source_line": 1470
+    },
+    {
+      "lhs": "named_parameter_type_list",
+      "rhs": [
+        "parameter_list",
+        "comma_opt_ellipsis"
+      ],
+      "source_line": 1471
+    },
+    {
+      "lhs": "named_parameter_type_list",
+      "rhs": [
+        "type_name",
+        "comma_opt_ellipsis"
+      ],
+      "source_line": 1472
+    },
+    {
+      "lhs": "named_parameter_type_list",
+      "rhs": [
+        "type_name",
+        "initializer",
+        "comma_opt_ellipsis"
+      ],
+      "source_line": 1473
+    },
+    {
+      "lhs": "named_parameter_type_list",
+      "rhs": [
+        "ELLIPSIS"
+      ],
+      "source_line": 1474
+    },
+    {
+      "lhs": "comma_opt_ellipsis",
+      "rhs": [
+        "ELLIPSIS"
+      ],
+      "source_line": 1478
+    },
+    {
+      "lhs": "comma_opt_ellipsis",
+      "rhs": [
+        ",",
+        "ELLIPSIS"
+      ],
+      "source_line": 1479
+    },
+    {
+      "lhs": "parameter_list",
+      "rhs": [
+        "non_casting_parameter_declaration"
+      ],
+      "source_line": 1483
+    },
+    {
+      "lhs": "parameter_list",
+      "rhs": [
+        "non_casting_parameter_declaration",
+        "initializer"
+      ],
+      "source_line": 1484
+    },
+    {
+      "lhs": "parameter_list",
+      "rhs": [
+        "type_name",
+        ",",
+        "parameter_declaration"
+      ],
+      "source_line": 1485
+    },
+    {
+      "lhs": "parameter_list",
+      "rhs": [
+        "type_name",
+        "initializer",
+        ",",
+        "parameter_declaration"
+      ],
+      "source_line": 1486
+    },
+    {
+      "lhs": "parameter_list",
+      "rhs": [
+        "parameter_list",
+        ",",
+        "parameter_declaration"
+      ],
+      "source_line": 1487
+    },
+    {
+      "lhs": "parameter_declaration",
+      "rhs": [
+        "type_name"
+      ],
+      "source_line": 1500
+    },
+    {
+      "lhs": "parameter_declaration",
+      "rhs": [
+        "type_name",
+        "initializer"
+      ],
+      "source_line": 1501
+    },
+    {
+      "lhs": "parameter_declaration",
+      "rhs": [
+        "non_casting_parameter_declaration"
+      ],
+      "source_line": 1502
+    },
+    {
+      "lhs": "parameter_declaration",
+      "rhs": [
+        "non_casting_parameter_declaration",
+        "initializer"
+      ],
+      "source_line": 1503
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_specifier"
+      ],
+      "source_line": 1554
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_specifier",
+        "abstract_declarator"
+      ],
+      "source_line": 1555
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_specifier",
+        "identifier_declarator"
+      ],
+      "source_line": 1556
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_specifier",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 1557
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_qualifier_list"
+      ],
+      "source_line": 1559
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_qualifier_list",
+        "abstract_declarator"
+      ],
+      "source_line": 1560
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "declaration_qualifier_list",
+        "identifier_declarator"
+      ],
+      "source_line": 1561
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "type_specifier",
+        "identifier_declarator"
+      ],
+      "source_line": 1563
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "type_specifier",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 1564
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "basic_type_name",
+        "identifier_declarator"
+      ],
+      "source_line": 1566
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "basic_type_name",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 1567
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "TYPEDEFname",
+        "identifier_declarator"
+      ],
+      "source_line": 1569
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "TYPEDEFname",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 1570
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "identifier_declarator"
+      ],
+      "source_line": 1572
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 1573
+    },
+    {
+      "lhs": "non_casting_parameter_declaration",
+      "rhs": [
+        "type_qualifier_list",
+        "identifier_declarator"
+      ],
+      "source_line": 1575
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "type_specifier"
+      ],
+      "source_line": 1579
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "basic_type_name"
+      ],
+      "source_line": 1580
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 1581
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "global_or_scoped_typedefname"
+      ],
+      "source_line": 1582
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "type_qualifier_list"
+      ],
+      "source_line": 1583
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "type_specifier",
+        "abstract_declarator"
+      ],
+      "source_line": 1585
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "basic_type_name",
+        "abstract_declarator"
+      ],
+      "source_line": 1586
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "TYPEDEFname",
+        "abstract_declarator"
+      ],
+      "source_line": 1587
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "abstract_declarator"
+      ],
+      "source_line": 1588
+    },
+    {
+      "lhs": "type_name",
+      "rhs": [
+        "type_qualifier_list",
+        "abstract_declarator"
+      ],
+      "source_line": 1589
+    },
+    {
+      "lhs": "initializer_opt",
+      "rhs": [],
+      "source_line": 1594
+    },
+    {
+      "lhs": "initializer_opt",
+      "rhs": [
+        "initializer"
+      ],
+      "source_line": 1594
+    },
+    {
+      "lhs": "initializer",
+      "rhs": [
+        "=",
+        "initializer_group"
+      ],
+      "source_line": 1598
+    },
+    {
+      "lhs": "initializer_group",
+      "rhs": [
+        "{",
+        "initializer_list",
+        "}"
+      ],
+      "source_line": 1602
+    },
+    {
+      "lhs": "initializer_group",
+      "rhs": [
+        "{",
+        "initializer_list",
+        ",",
+        "}"
+      ],
+      "source_line": 1603
+    },
+    {
+      "lhs": "initializer_group",
+      "rhs": [
+        "assignment_expression"
+      ],
+      "source_line": 1604
+    },
+    {
+      "lhs": "initializer_list",
+      "rhs": [
+        "initializer_group"
+      ],
+      "source_line": 1608
+    },
+    {
+      "lhs": "initializer_list",
+      "rhs": [
+        "initializer_list",
+        ",",
+        "initializer_group"
+      ],
+      "source_line": 1609
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "labeled_statement"
+      ],
+      "source_line": 1616
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "compound_statement"
+      ],
+      "source_line": 1617
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "expression_statement"
+      ],
+      "source_line": 1618
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "selection_statement"
+      ],
+      "source_line": 1619
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "iteration_statement"
+      ],
+      "source_line": 1620
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "jump_statement"
+      ],
+      "source_line": 1621
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "declaration"
+      ],
+      "source_line": 1622
+    },
+    {
+      "lhs": "labeled_statement",
+      "rhs": [
+        "label",
+        ":",
+        "statement"
+      ],
+      "source_line": 1626
+    },
+    {
+      "lhs": "labeled_statement",
+      "rhs": [
+        "CASE",
+        "constant_expression",
+        ":",
+        "statement"
+      ],
+      "source_line": 1627
+    },
+    {
+      "lhs": "labeled_statement",
+      "rhs": [
+        "DEFAULT",
+        ":",
+        "statement"
+      ],
+      "source_line": 1628
+    },
+    {
+      "lhs": "compound_statement",
+      "rhs": [
+        "{",
+        "statement_list_opt",
+        "}"
+      ],
+      "source_line": 1637
+    },
+    {
+      "lhs": "declaration_list",
+      "rhs": [
+        "declaration"
+      ],
+      "source_line": 1641
+    },
+    {
+      "lhs": "declaration_list",
+      "rhs": [
+        "declaration_list",
+        "declaration"
+      ],
+      "source_line": 1642
+    },
+    {
+      "lhs": "statement_list_opt",
+      "rhs": [],
+      "source_line": 1647
+    },
+    {
+      "lhs": "statement_list_opt",
+      "rhs": [
+        "statement_list_opt",
+        "statement"
+      ],
+      "source_line": 1647
+    },
+    {
+      "lhs": "expression_statement",
+      "rhs": [
+        "comma_expression_opt",
+        ";"
+      ],
+      "source_line": 1651
+    },
+    {
+      "lhs": "selection_statement",
+      "rhs": [
+        "IF",
+        "(",
+        "comma_expression",
+        ")",
+        "statement"
+      ],
+      "source_line": 1655
+    },
+    {
+      "lhs": "selection_statement",
+      "rhs": [
+        "IF",
+        "(",
+        "comma_expression",
+        ")",
+        "statement",
+        "ELSE",
+        "statement"
+      ],
+      "source_line": 1656
+    },
+    {
+      "lhs": "selection_statement",
+      "rhs": [
+        "SWITCH",
+        "(",
+        "comma_expression",
+        ")",
+        "statement"
+      ],
+      "source_line": 1657
+    },
+    {
+      "lhs": "iteration_statement",
+      "rhs": [
+        "WHILE",
+        "(",
+        "comma_expression_opt",
+        ")",
+        "statement"
+      ],
+      "source_line": 1661
+    },
+    {
+      "lhs": "iteration_statement",
+      "rhs": [
+        "DO",
+        "statement",
+        "WHILE",
+        "(",
+        "comma_expression",
+        ")",
+        ";"
+      ],
+      "source_line": 1662
+    },
+    {
+      "lhs": "iteration_statement",
+      "rhs": [
+        "FOR",
+        "(",
+        "comma_expression_opt",
+        ";",
+        "comma_expression_opt",
+        ";",
+        "comma_expression_opt",
+        ")",
+        "statement"
+      ],
+      "source_line": 1664
+    },
+    {
+      "lhs": "iteration_statement",
+      "rhs": [
+        "FOR",
+        "(",
+        "declaration",
+        "comma_expression_opt",
+        ";",
+        "comma_expression_opt",
+        ")",
+        "statement"
+      ],
+      "source_line": 1667
+    },
+    {
+      "lhs": "jump_statement",
+      "rhs": [
+        "GOTO",
+        "label",
+        ";"
+      ],
+      "source_line": 1672
+    },
+    {
+      "lhs": "jump_statement",
+      "rhs": [
+        "CONTINUE",
+        ";"
+      ],
+      "source_line": 1673
+    },
+    {
+      "lhs": "jump_statement",
+      "rhs": [
+        "BREAK",
+        ";"
+      ],
+      "source_line": 1674
+    },
+    {
+      "lhs": "jump_statement",
+      "rhs": [
+        "RETURN",
+        "comma_expression_opt",
+        ";"
+      ],
+      "source_line": 1675
+    },
+    {
+      "lhs": "label",
+      "rhs": [
+        "IDENTIFIER"
+      ],
+      "source_line": 1683
+    },
+    {
+      "lhs": "label",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 1684
+    },
+    {
+      "lhs": "translation_unit",
+      "rhs": [],
+      "source_line": 1692
+    },
+    {
+      "lhs": "translation_unit",
+      "rhs": [
+        "translation_unit",
+        "external_definition"
+      ],
+      "source_line": 1692
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "function_declaration"
+      ],
+      "source_line": 1696
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "function_definition"
+      ],
+      "source_line": 1697
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "declaration"
+      ],
+      "source_line": 1698
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "linkage_specifier",
+        "function_declaration"
+      ],
+      "source_line": 1699
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "linkage_specifier",
+        "function_definition"
+      ],
+      "source_line": 1700
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "linkage_specifier",
+        "declaration"
+      ],
+      "source_line": 1701
+    },
+    {
+      "lhs": "external_definition",
+      "rhs": [
+        "linkage_specifier",
+        "{",
+        "translation_unit",
+        "}"
+      ],
+      "source_line": 1702
+    },
+    {
+      "lhs": "linkage_specifier",
+      "rhs": [
+        "EXTERN",
+        "STRINGliteral"
+      ],
+      "source_line": 1706
+    },
+    {
+      "lhs": "function_declaration",
+      "rhs": [
+        "identifier_declarator",
+        ";"
+      ],
+      "source_line": 1716
+    },
+    {
+      "lhs": "function_declaration",
+      "rhs": [
+        "constructor_function_declaration",
+        ";"
+      ],
+      "source_line": 1723
+    },
+    {
+      "lhs": "function_definition",
+      "rhs": [
+        "new_function_definition"
+      ],
+      "source_line": 1727
+    },
+    {
+      "lhs": "function_definition",
+      "rhs": [
+        "old_function_definition"
+      ],
+      "source_line": 1728
+    },
+    {
+      "lhs": "function_definition",
+      "rhs": [
+        "constructor_function_definition"
+      ],
+      "source_line": 1729
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "identifier_declarator",
+        "compound_statement"
+      ],
+      "source_line": 1751
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "declaration_specifier",
+        "declarator",
+        "compound_statement"
+      ],
+      "source_line": 1752
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "type_specifier",
+        "declarator",
+        "compound_statement"
+      ],
+      "source_line": 1753
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "basic_type_name",
+        "declarator",
+        "compound_statement"
+      ],
+      "source_line": 1754
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "TYPEDEFname",
+        "declarator",
+        "compound_statement"
+      ],
+      "source_line": 1755
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "declarator",
+        "compound_statement"
+      ],
+      "source_line": 1756
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "declaration_qualifier_list",
+        "identifier_declarator",
+        "compound_statement"
+      ],
+      "source_line": 1757
+    },
+    {
+      "lhs": "new_function_definition",
+      "rhs": [
+        "type_qualifier_list",
+        "identifier_declarator",
+        "compound_statement"
+      ],
+      "source_line": 1758
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1769,
+      "omitted_actions": [
+        {
+          "after_symbols": 1,
+          "source_line": 1769,
+          "source_end_line": 1769
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "declaration_specifier",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1770,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1770,
+          "source_end_line": 1770
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "type_specifier",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1771,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1771,
+          "source_end_line": 1771
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "basic_type_name",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1772,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1772,
+          "source_end_line": 1772
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "TYPEDEFname",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1773,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1773,
+          "source_end_line": 1773
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1774,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1774,
+          "source_end_line": 1774
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "declaration_qualifier_list",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1775,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1775,
+          "source_end_line": 1775
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_definition",
+      "rhs": [
+        "type_qualifier_list",
+        "old_function_declarator",
+        "old_function_body"
+      ],
+      "source_line": 1776,
+      "omitted_actions": [
+        {
+          "after_symbols": 2,
+          "source_line": 1776,
+          "source_end_line": 1776
+        }
+      ]
+    },
+    {
+      "lhs": "old_function_body",
+      "rhs": [
+        "declaration_list",
+        "compound_statement"
+      ],
+      "source_line": 1780
+    },
+    {
+      "lhs": "old_function_body",
+      "rhs": [
+        "compound_statement"
+      ],
+      "source_line": 1781
+    },
+    {
+      "lhs": "constructor_function_definition",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "parameter_type_list",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1805
+    },
+    {
+      "lhs": "constructor_function_definition",
+      "rhs": [
+        "declaration_specifier",
+        "parameter_type_list",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1808
+    },
+    {
+      "lhs": "constructor_function_declaration",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "parameter_type_list"
+      ],
+      "source_line": 1817
+    },
+    {
+      "lhs": "constructor_function_declaration",
+      "rhs": [
+        "declaration_specifier",
+        "parameter_type_list"
+      ],
+      "source_line": 1819
+    },
+    {
+      "lhs": "constructor_function_in_class",
+      "rhs": [
+        "declaration_specifier",
+        "constructor_parameter_list_and_body"
+      ],
+      "source_line": 1843
+    },
+    {
+      "lhs": "constructor_function_in_class",
+      "rhs": [
+        "TYPEDEFname",
+        "constructor_parameter_list_and_body"
+      ],
+      "source_line": 1844
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1857
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_name",
+        "initializer",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1858
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "named_parameter_type_list",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1859
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1860
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_name",
+        "initializer",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1862
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "named_parameter_type_list",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1864
+    },
+    {
+      "lhs": "constructor_parameter_list_and_body",
+      "rhs": [
+        "constructor_conflicting_parameter_list_and_body"
+      ],
+      "source_line": 1867
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_specifier",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1887
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "basic_type_name",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1889
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1892
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "global_or_scoped_typedefname",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1895
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_qualifier_list",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1898
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_specifier",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1902
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "basic_type_name",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1904
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "global_or_scoped_typedefname",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1909
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_qualifier_list",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1911
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_specifier",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1915
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "basic_type_name",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1918
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1921
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "global_or_scoped_typedefname",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1924
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_qualifier_list",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1927
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_specifier",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1931
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "basic_type_name",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1934
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "global_or_scoped_typedefname",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1939
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "(",
+        "type_qualifier_list",
+        "abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1942
+    },
+    {
+      "lhs": "constructor_conflicting_parameter_list_and_body",
+      "rhs": [
+        "constructor_conflicting_typedef_declarator"
+      ],
+      "source_line": 1945
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "unary_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1960
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "unary_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1963
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfix_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1966
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfix_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1969
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        ";"
+      ],
+      "source_line": 1973
+    },
+    {
+      "lhs": "constructor_conflicting_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")",
+        "type_qualifier_list_opt",
+        "constructor_init_list_opt",
+        "compound_statement"
+      ],
+      "source_line": 1976
+    },
+    {
+      "lhs": "constructor_init_list_opt",
+      "rhs": [],
+      "source_line": 1983
+    },
+    {
+      "lhs": "constructor_init_list_opt",
+      "rhs": [
+        "constructor_init_list"
+      ],
+      "source_line": 1983
+    },
+    {
+      "lhs": "constructor_init_list",
+      "rhs": [
+        ":",
+        "constructor_init"
+      ],
+      "source_line": 1987
+    },
+    {
+      "lhs": "constructor_init_list",
+      "rhs": [
+        "constructor_init_list",
+        ",",
+        "constructor_init"
+      ],
+      "source_line": 1988
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "IDENTIFIER",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 1992
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "IDENTIFIER",
+        "(",
+        ")"
+      ],
+      "source_line": 1993
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 1995
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "TYPEDEFname",
+        "(",
+        ")"
+      ],
+      "source_line": 1996
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 1997
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "global_or_scoped_typedefname",
+        "(",
+        ")"
+      ],
+      "source_line": 1998
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 2000
+    },
+    {
+      "lhs": "constructor_init",
+      "rhs": [
+        "(",
+        ")"
+      ],
+      "source_line": 2001
+    },
+    {
+      "lhs": "declarator",
+      "rhs": [
+        "identifier_declarator"
+      ],
+      "source_line": 2005
+    },
+    {
+      "lhs": "declarator",
+      "rhs": [
+        "typedef_declarator"
+      ],
+      "source_line": 2006
+    },
+    {
+      "lhs": "typedef_declarator",
+      "rhs": [
+        "paren_typedef_declarator"
+      ],
+      "source_line": 2010
+    },
+    {
+      "lhs": "typedef_declarator",
+      "rhs": [
+        "simple_paren_typedef_declarator"
+      ],
+      "source_line": 2011
+    },
+    {
+      "lhs": "typedef_declarator",
+      "rhs": [
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 2012
+    },
+    {
+      "lhs": "parameter_typedef_declarator",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 2016
+    },
+    {
+      "lhs": "parameter_typedef_declarator",
+      "rhs": [
+        "TYPEDEFname",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2017
+    },
+    {
+      "lhs": "parameter_typedef_declarator",
+      "rhs": [
+        "clean_typedef_declarator"
+      ],
+      "source_line": 2018
+    },
+    {
+      "lhs": "clean_typedef_declarator",
+      "rhs": [
+        "clean_postfix_typedef_declarator"
+      ],
+      "source_line": 2030
+    },
+    {
+      "lhs": "clean_typedef_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 2031
+    },
+    {
+      "lhs": "clean_typedef_declarator",
+      "rhs": [
+        "unary_modifier",
+        "parameter_typedef_declarator"
+      ],
+      "source_line": 2032
+    },
+    {
+      "lhs": "clean_postfix_typedef_declarator",
+      "rhs": [
+        "(",
+        "clean_typedef_declarator",
+        ")"
+      ],
+      "source_line": 2036
+    },
+    {
+      "lhs": "clean_postfix_typedef_declarator",
+      "rhs": [
+        "(",
+        "clean_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2037
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "postfix_paren_typedef_declarator"
+      ],
+      "source_line": 2047
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")"
+      ],
+      "source_line": 2048
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "unary_modifier",
+        "(",
+        "simple_paren_typedef_declarator",
+        ")"
+      ],
+      "source_line": 2049
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "(",
+        "TYPEDEFname",
+        ")"
+      ],
+      "source_line": 2050
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "unary_modifier",
+        "(",
+        "TYPEDEFname",
+        ")"
+      ],
+      "source_line": 2051
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "paren_typedef_declarator"
+      ],
+      "source_line": 2052
+    },
+    {
+      "lhs": "paren_typedef_declarator",
+      "rhs": [
+        "unary_modifier",
+        "paren_typedef_declarator"
+      ],
+      "source_line": 2053
+    },
+    {
+      "lhs": "postfix_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "paren_typedef_declarator",
+        ")"
+      ],
+      "source_line": 2057
+    },
+    {
+      "lhs": "postfix_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "simple_paren_typedef_declarator",
+        "postfixing_abstract_declarator",
+        ")"
+      ],
+      "source_line": 2058
+    },
+    {
+      "lhs": "postfix_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        "postfixing_abstract_declarator",
+        ")"
+      ],
+      "source_line": 2059
+    },
+    {
+      "lhs": "postfix_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "paren_typedef_declarator",
+        ")",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2060
+    },
+    {
+      "lhs": "simple_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "TYPEDEFname",
+        ")"
+      ],
+      "source_line": 2069
+    },
+    {
+      "lhs": "simple_paren_typedef_declarator",
+      "rhs": [
+        "(",
+        "simple_paren_typedef_declarator",
+        ")"
+      ],
+      "source_line": 2070
+    },
+    {
+      "lhs": "identifier_declarator",
+      "rhs": [
+        "unary_identifier_declarator"
+      ],
+      "source_line": 2074
+    },
+    {
+      "lhs": "identifier_declarator",
+      "rhs": [
+        "paren_identifier_declarator"
+      ],
+      "source_line": 2075
+    },
+    {
+      "lhs": "unary_identifier_declarator",
+      "rhs": [
+        "postfix_identifier_declarator"
+      ],
+      "source_line": 2086
+    },
+    {
+      "lhs": "unary_identifier_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "identifier_declarator"
+      ],
+      "source_line": 2087
+    },
+    {
+      "lhs": "unary_identifier_declarator",
+      "rhs": [
+        "unary_modifier",
+        "identifier_declarator"
+      ],
+      "source_line": 2088
+    },
+    {
+      "lhs": "postfix_identifier_declarator",
+      "rhs": [
+        "paren_identifier_declarator",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2092
+    },
+    {
+      "lhs": "postfix_identifier_declarator",
+      "rhs": [
+        "(",
+        "unary_identifier_declarator",
+        ")"
+      ],
+      "source_line": 2093
+    },
+    {
+      "lhs": "postfix_identifier_declarator",
+      "rhs": [
+        "(",
+        "unary_identifier_declarator",
+        ")",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2094
+    },
+    {
+      "lhs": "old_function_declarator",
+      "rhs": [
+        "postfix_old_function_declarator"
+      ],
+      "source_line": 2098
+    },
+    {
+      "lhs": "old_function_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "old_function_declarator"
+      ],
+      "source_line": 2099
+    },
+    {
+      "lhs": "old_function_declarator",
+      "rhs": [
+        "unary_modifier",
+        "old_function_declarator"
+      ],
+      "source_line": 2100
+    },
+    {
+      "lhs": "postfix_old_function_declarator",
+      "rhs": [
+        "paren_identifier_declarator",
+        "(",
+        "argument_expression_list",
+        ")"
+      ],
+      "source_line": 2124
+    },
+    {
+      "lhs": "postfix_old_function_declarator",
+      "rhs": [
+        "(",
+        "old_function_declarator",
+        ")"
+      ],
+      "source_line": 2125
+    },
+    {
+      "lhs": "postfix_old_function_declarator",
+      "rhs": [
+        "(",
+        "old_function_declarator",
+        ")",
+        "old_postfixing_abstract_declarator"
+      ],
+      "source_line": 2126
+    },
+    {
+      "lhs": "old_postfixing_abstract_declarator",
+      "rhs": [
+        "array_abstract_declarator"
+      ],
+      "source_line": 2130
+    },
+    {
+      "lhs": "old_postfixing_abstract_declarator",
+      "rhs": [
+        "old_parameter_type_list"
+      ],
+      "source_line": 2131
+    },
+    {
+      "lhs": "abstract_declarator",
+      "rhs": [
+        "unary_abstract_declarator"
+      ],
+      "source_line": 2135
+    },
+    {
+      "lhs": "abstract_declarator",
+      "rhs": [
+        "postfix_abstract_declarator"
+      ],
+      "source_line": 2136
+    },
+    {
+      "lhs": "abstract_declarator",
+      "rhs": [
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2137
+    },
+    {
+      "lhs": "postfixing_abstract_declarator",
+      "rhs": [
+        "array_abstract_declarator"
+      ],
+      "source_line": 2141
+    },
+    {
+      "lhs": "postfixing_abstract_declarator",
+      "rhs": [
+        "parameter_type_list"
+      ],
+      "source_line": 2142
+    },
+    {
+      "lhs": "array_abstract_declarator",
+      "rhs": [
+        "[",
+        "]"
+      ],
+      "source_line": 2146
+    },
+    {
+      "lhs": "array_abstract_declarator",
+      "rhs": [
+        "[",
+        "constant_expression",
+        "]"
+      ],
+      "source_line": 2147
+    },
+    {
+      "lhs": "array_abstract_declarator",
+      "rhs": [
+        "array_abstract_declarator",
+        "[",
+        "constant_expression",
+        "]"
+      ],
+      "source_line": 2148
+    },
+    {
+      "lhs": "unary_abstract_declarator",
+      "rhs": [
+        "asterisk_or_ampersand"
+      ],
+      "source_line": 2152
+    },
+    {
+      "lhs": "unary_abstract_declarator",
+      "rhs": [
+        "unary_modifier"
+      ],
+      "source_line": 2153
+    },
+    {
+      "lhs": "unary_abstract_declarator",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "abstract_declarator"
+      ],
+      "source_line": 2154
+    },
+    {
+      "lhs": "unary_abstract_declarator",
+      "rhs": [
+        "unary_modifier",
+        "abstract_declarator"
+      ],
+      "source_line": 2155
+    },
+    {
+      "lhs": "postfix_abstract_declarator",
+      "rhs": [
+        "(",
+        "unary_abstract_declarator",
+        ")"
+      ],
+      "source_line": 2159
+    },
+    {
+      "lhs": "postfix_abstract_declarator",
+      "rhs": [
+        "(",
+        "postfix_abstract_declarator",
+        ")"
+      ],
+      "source_line": 2160
+    },
+    {
+      "lhs": "postfix_abstract_declarator",
+      "rhs": [
+        "(",
+        "postfixing_abstract_declarator",
+        ")"
+      ],
+      "source_line": 2161
+    },
+    {
+      "lhs": "postfix_abstract_declarator",
+      "rhs": [
+        "(",
+        "unary_abstract_declarator",
+        ")",
+        "postfixing_abstract_declarator"
+      ],
+      "source_line": 2162
+    },
+    {
+      "lhs": "asterisk_or_ampersand",
+      "rhs": [
+        "*"
+      ],
+      "source_line": 2166
+    },
+    {
+      "lhs": "asterisk_or_ampersand",
+      "rhs": [
+        "&"
+      ],
+      "source_line": 2167
+    },
+    {
+      "lhs": "unary_modifier",
+      "rhs": [
+        "scope",
+        "*",
+        "type_qualifier_list_opt"
+      ],
+      "source_line": 2171
+    },
+    {
+      "lhs": "unary_modifier",
+      "rhs": [
+        "asterisk_or_ampersand",
+        "type_qualifier_list"
+      ],
+      "source_line": 2172
+    },
+    {
+      "lhs": "scoping_name",
+      "rhs": [
+        "tag_name"
+      ],
+      "source_line": 2198
+    },
+    {
+      "lhs": "scoping_name",
+      "rhs": [
+        "aggregate_key",
+        "tag_name"
+      ],
+      "source_line": 2199
+    },
+    {
+      "lhs": "scope",
+      "rhs": [
+        "scoping_name",
+        "CLCL"
+      ],
+      "source_line": 2203
+    },
+    {
+      "lhs": "scope",
+      "rhs": [
+        "scope",
+        "scoping_name",
+        "CLCL"
+      ],
+      "source_line": 2204
+    },
+    {
+      "lhs": "tag_name",
+      "rhs": [
+        "IDENTIFIER"
+      ],
+      "source_line": 2218
+    },
+    {
+      "lhs": "tag_name",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 2219
+    },
+    {
+      "lhs": "global_scope",
+      "rhs": [
+        "CLCL"
+      ],
+      "source_line": 2223,
+      "omitted_actions": [
+        {
+          "after_symbols": 0,
+          "source_line": 2223,
+          "source_end_line": 2223
+        }
+      ]
+    },
+    {
+      "lhs": "global_or_scope",
+      "rhs": [
+        "global_scope"
+      ],
+      "source_line": 2227
+    },
+    {
+      "lhs": "global_or_scope",
+      "rhs": [
+        "scope"
+      ],
+      "source_line": 2228
+    },
+    {
+      "lhs": "global_or_scope",
+      "rhs": [
+        "global_scope",
+        "scope"
+      ],
+      "source_line": 2229
+    },
+    {
+      "lhs": "scope_opt_identifier",
+      "rhs": [
+        "IDENTIFIER"
+      ],
+      "source_line": 2240
+    },
+    {
+      "lhs": "scope_opt_identifier",
+      "rhs": [
+        "scope",
+        "IDENTIFIER"
+      ],
+      "source_line": 2241
+    },
+    {
+      "lhs": "scope_opt_complex_name",
+      "rhs": [
+        "complex_name"
+      ],
+      "source_line": 2245
+    },
+    {
+      "lhs": "scope_opt_complex_name",
+      "rhs": [
+        "scope",
+        "complex_name"
+      ],
+      "source_line": 2246
+    },
+    {
+      "lhs": "complex_name",
+      "rhs": [
+        "~",
+        "TYPEDEFname"
+      ],
+      "source_line": 2250
+    },
+    {
+      "lhs": "complex_name",
+      "rhs": [
+        "operator_function_name"
+      ],
+      "source_line": 2251
+    },
+    {
+      "lhs": "global_opt_scope_opt_identifier",
+      "rhs": [
+        "global_scope",
+        "scope_opt_identifier"
+      ],
+      "source_line": 2268
+    },
+    {
+      "lhs": "global_opt_scope_opt_identifier",
+      "rhs": [
+        "scope_opt_identifier"
+      ],
+      "source_line": 2269
+    },
+    {
+      "lhs": "global_opt_scope_opt_complex_name",
+      "rhs": [
+        "global_scope",
+        "scope_opt_complex_name"
+      ],
+      "source_line": 2273
+    },
+    {
+      "lhs": "global_opt_scope_opt_complex_name",
+      "rhs": [
+        "scope_opt_complex_name"
+      ],
+      "source_line": 2274
+    },
+    {
+      "lhs": "scoped_typedefname",
+      "rhs": [
+        "scope",
+        "TYPEDEFname"
+      ],
+      "source_line": 2285
+    },
+    {
+      "lhs": "global_or_scoped_typedefname",
+      "rhs": [
+        "scoped_typedefname"
+      ],
+      "source_line": 2289
+    },
+    {
+      "lhs": "global_or_scoped_typedefname",
+      "rhs": [
+        "global_scope",
+        "scoped_typedefname"
+      ],
+      "source_line": 2290
+    },
+    {
+      "lhs": "global_or_scoped_typedefname",
+      "rhs": [
+        "global_scope",
+        "TYPEDEFname"
+      ],
+      "source_line": 2291
+    },
+    {
+      "lhs": "global_opt_scope_opt_typedefname",
+      "rhs": [
+        "TYPEDEFname"
+      ],
+      "source_line": 2295
+    },
+    {
+      "lhs": "global_opt_scope_opt_typedefname",
+      "rhs": [
+        "global_or_scoped_typedefname"
+      ],
+      "source_line": 2296
+    }
+  ],
+  "yacc": {
+    "declared_tokens": [
+      "AUTO",
+      "DOUBLE",
+      "INT",
+      "STRUCT",
+      "BREAK",
+      "ELSE",
+      "LONG",
+      "SWITCH",
+      "CASE",
+      "ENUM",
+      "REGISTER",
+      "TYPEDEF",
+      "CHAR",
+      "EXTERN",
+      "RETURN",
+      "UNION",
+      "CONST",
+      "FLOAT",
+      "SHORT",
+      "UNSIGNED",
+      "CONTINUE",
+      "FOR",
+      "SIGNED",
+      "VOID",
+      "DEFAULT",
+      "GOTO",
+      "SIZEOF",
+      "VOLATILE",
+      "DO",
+      "IF",
+      "STATIC",
+      "WHILE",
+      "NEW",
+      "DELETE",
+      "THIS",
+      "OPERATOR",
+      "CLASS",
+      "PUBLIC",
+      "PROTECTED",
+      "PRIVATE",
+      "VIRTUAL",
+      "FRIEND",
+      "INLINE",
+      "OVERLOAD",
+      "IDENTIFIER",
+      "STRINGliteral",
+      "FLOATINGconstant",
+      "INTEGERconstant",
+      "CHARACTERconstant",
+      "OCTALconstant",
+      "HEXconstant",
+      "TYPEDEFname",
+      "ARROW",
+      "ICR",
+      "DECR",
+      "LS",
+      "RS",
+      "LE",
+      "GE",
+      "EQ",
+      "NE",
+      "ANDAND",
+      "OROR",
+      "ELLIPSIS",
+      "CLCL",
+      "DOTstar",
+      "ARROWstar",
+      "MULTassign",
+      "DIVassign",
+      "MODassign",
+      "PLUSassign",
+      "MINUSassign",
+      "LSassign",
+      "RSassign",
+      "ANDassign",
+      "ERassign",
+      "ORassign"
+    ],
+    "token_numbers": {},
+    "precedence_low_to_high": [],
+    "explicit_eof_tokens": [],
+    "error_token_used": false
+  }
+}

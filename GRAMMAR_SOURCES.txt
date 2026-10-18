@@ -1,0 +1,73 @@
+C++ grammar candidates for the ambiguity project
+Retrieved/verified: 2026-10-02
+
+These are the two historical candidate grammars discussed in this chat.
+Neither has been confirmed as the exact C++ grammar used in the NSF final
+report. They are original Yacc sources, not converted inputs for grammar_engine.py.
+All downloaded/extracted source files are preserved byte-for-byte.
+
+1. cfront/gram.y
+
+   Cfront release 3.0.3 (the archive dates this release May 1994).
+   The source header identifies the C++ Language System, Release 3.0.
+   Source file:
+   https://softwarepreservation.computerhistory.org/c_plus_plus/cfront/release_3.0.3/source/src/gram.y
+   Archive context:
+   https://softwarepreservation.computerhistory.org/c_plus_plus/
+
+   This is the compiler's syntax analyzer, including C++ semantic actions,
+   precedence declarations, and syntax extensions for error handling.
+   It depends on the rest of cfront; this single file is not a standalone
+   compiler. Removing actions or directives would require a separate,
+   documented conversion before treating it as a pure CFG benchmark.
+
+   The archive states that the cfront sources are posted with permission
+   of the copyright owner for historical research purposes only.
+   The original copyright/proprietary notices are retained in gram.y.
+   For that reason gram.y and its conversions are not distributed in this
+   repository; README.md explains how to fetch, verify and convert it.
+
+2. roskind/cpp5.y
+
+   Jim Roskind's grammar release 2.0, July 4, 1991.
+   Companion grammar5.txt is updated July 11, 1991 and describes a C++ 2.1
+   grammar. The grammar release number is distinct from the C++ version.
+   Source archive (original Roskind files preserved by Robert Elder):
+   https://blog.robertelder.org/jim-roskind-grammar/c%2B%2Bgrammar2.0.tar.Z
+   Mirror context and published archive checksum:
+   https://blog.robertelder.org/jim-roskind-grammar/
+   Archive SHA-256:
+   9cb8bf51f9b54b998e2058bec9892f170985e303a24c6d774ed186ec49ee065b
+
+   Included unchanged from the archive:
+   cpp5.y       - C++ grammar, start symbol translation_unit
+   cpp5.l       - accompanying demonstration lexer
+   freegrm5.txt  - introduction, limitations, and historical build instructions
+   grammar5.txt - ambiguity discussion and conflict analysis
+   autodoc5.txt - guide to the generated analysis
+   y.output     - original generated grammar/parser analysis
+
+   This release omits templates and exception handling. The demonstration
+   lexer lacks preprocessing, comment removal, and a symbol table; it
+   guesses that uppercase-leading names are type names. These limitations
+   are documented in freegrm5.txt. The grammar has no precedence or
+   associativity declarations to resolve conflicts.
+
+   The notices and copying terms are retained in the original files.
+   y.output is historical upstream output, not a fresh local parser run.
+
+Verification
+
+The Roskind archive matches its published SHA-256 checksum. Each copied
+file was compared byte-for-byte with its downloaded file or archive member.
+Both grammar files were checked for Yacc declarations and grammar sections.
+No grammar conversion or parser build was performed.
+
+SHA-256 of the included source files:
+43183a06e283bdc56132e444191f73cd4d148f6179f8b6c33b9a769a6ef16acd  cfront/gram.y
+3274a15770415e8d8a2be58466a6f949ba1af1c737382da941ee510885b53f71  roskind/cpp5.y
+6b38ca6ab2b6b9d9fa9a4137d8780bad1bada36c6626a65774fc335fca1a9b3a  roskind/cpp5.l
+7aabda9dc49f62f304c0c8b4f8fdeb17ee31bba6b436ed850fa0e0b5d5f18cfd  roskind/freegrm5.txt
+063889ab85baf5658b4b962412e0e7673f4ff8d8a1f04bb8ee622fd2008ce97d  roskind/grammar5.txt
+ee6507526d57e6bca35bed60fdc758cef2fe1d266053d917cbb47a0117be0d47  roskind/autodoc5.txt
+f90529ef12c5b70854baffe2d16a24932d888ab6920f5c7e3467f44f5a5e1a26  roskind/y.output

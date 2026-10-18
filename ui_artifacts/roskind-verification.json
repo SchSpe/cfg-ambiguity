@@ -1,0 +1,25 @@
+{
+  "verified_level": 5,
+  "findings": {
+    "union": 2
+  },
+  "sources": {
+    "member_declaration": [
+      "P311",
+      "P315"
+    ],
+    "function_definition": [
+      "P484",
+      "P486"
+    ]
+  },
+  "deep_page_total": "9154093119",
+  "deep_page_ranks": [
+    "9154093116",
+    "9154093117",
+    "9154093118"
+  ],
+  "memory_stop_preserved_snapshot": true,
+  "level5_seconds": 0.07282329199369997,
+  "level5_memory_bytes": 32260096
+}

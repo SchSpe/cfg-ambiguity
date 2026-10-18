@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Grammar approximation</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#grammar-panel-heading">Skip to grammar</a>
+  <main class="worksheet">
+    <header class="worksheet-header">
+      <div class="grammar-heading"><h1 id="grammar-context">Roskind · C++ grammar</h1><div class="grammar-switch" role="group" aria-label="Grammar"><button id="grammar-roskind" type="button" aria-pressed="true">Roskind</button><button id="grammar-expression" type="button" aria-pressed="false">Paper G₁</button></div></div>
+      <div class="level-row"><nav class="level-controls" aria-label="Approximation level"><button id="level-back" class="level-arrow" aria-label="Previous level" title="←" disabled>←</button><strong id="current-level">Level 0</strong><button id="level-next" class="level-arrow" aria-label="Next level" title="→" disabled>→</button></nav><div id="level-rail" class="level-rail" aria-label="Saved levels"></div></div>
+      <div class="computation-status"><span id="run-label" role="status"></span><button id="cancel-button" class="text-button" hidden>Stop</button></div>
+    </header>
+    <div id="message-banner" class="message-banner" role="alert" hidden></div>
+    <div class="inspection-grid">
+      <section class="grammar-panel" aria-labelledby="grammar-panel-heading">
+        <div class="panel-heading"><h2 id="grammar-panel-heading" tabindex="-1">Grammar</h2><span id="grammar-rule-count" class="panel-count"></span></div>
+        <div class="grammar-legend"><span><span class="flag union" aria-hidden="true">∪</span> Union</span><span><span class="flag concat" aria-hidden="true">·</span> Concatenation</span></div>
+        <div id="grammar-rules" class="grammar-rules" tabindex="0" aria-label="Production rules"></div>
+      </section>
+      <aside class="finding-panel" aria-labelledby="findings-heading">
+        <div class="panel-heading"><h2 id="findings-heading">Findings</h2><span id="findings-total" class="panel-count"></span></div>
+        <section class="worksheet-section operation-section union-section" aria-labelledby="union-heading">
+          <div class="operation-heading"><h2 id="union-heading">Union <span class="operator" aria-hidden="true">∪</span></h2><span id="union-count" class="operation-count"></span></div>
+          <p id="union-status" class="operation-status"></p>
+          <div id="union-proof"></div>
+          <div id="union-navigation" class="finding-controls" hidden><span id="union-range"></span><div><button id="union-back" class="quiet-button" type="button" aria-label="Previous union finding">←</button><button id="union-next" class="quiet-button" type="button" aria-label="Next union finding">→</button></div></div>
+        </section>
+        <section class="worksheet-section operation-section concat-section" aria-labelledby="concat-heading">
+          <div class="operation-heading"><h2 id="concat-heading">Concatenation <span class="operator" aria-hidden="true">·</span></h2><span id="concat-count" class="operation-count"></span></div>
+          <p id="concat-status" class="operation-status"></p>
+          <div id="concat-proof"></div>
+          <button id="paper-example-button" class="paper-example-button" type="button" hidden>Paper example · G₁</button>
+          <div id="concat-navigation" class="finding-controls" hidden><span id="concat-range"></span><div><button id="concat-back" class="quiet-button" type="button" aria-label="Previous concatenation finding">←</button><button id="concat-next" class="quiet-button" type="button" aria-label="Next concatenation finding">→</button></div></div>
+        </section>
+      </aside>
+    </div>
+    <section class="worksheet-section approximation-section" aria-labelledby="approximation-heading">
+      <h2 id="approximation-heading">Approximation</h2>
+      <div id="recurrence"></div>
+      <div id="approximation-summary"></div>
+      <div id="approximation-examples" class="approximation-examples"></div>
+      <details id="all-counts" class="secondary-detail"><summary>All languages</summary><div id="all-count-list" class="all-count-list"></div></details>
+    </section>
+    <footer class="worksheet-footer">
+      <div class="memory-row"><span>Memory <span id="memory-value">—</span></span><details><summary>Memory details</summary><div class="memory-content"><p id="memory-peak">Peak: —</p><label for="memory-limit">Worker limit</label><select id="memory-limit"><option value="64">64 MiB</option><option value="256">256 MiB</option><option value="512">512 MiB</option><option value="1024">1 GiB</option><option value="2048" selected>2 GiB</option><option value="4096">4 GiB</option></select></div></details></div>
+      <details class="source-details"><summary>Source</summary><p id="grammar-notice"></p></details>
+    </footer>
+  </main>
+</body>
+</html>

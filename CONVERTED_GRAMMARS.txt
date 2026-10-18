@@ -1,0 +1,91 @@
+Converted C++ grammar inputs
+
+Files
+  cfront/grammar.json  - program input: cfront 3.0.3 syntactic productions
+  cfront/grammar.cfg   - the same productions in readable ::= notation
+  roskind/grammar.json - program input: Roskind grammar release 2.0
+  roskind/grammar.cfg  - the same productions in readable ::= notation
+
+The cfront files are not distributed; convert_yacc.py creates them after
+cfront/gram.y is fetched as described in README.md.
+
+Read them in Python (working in the implementation folder):
+
+  from grammar_io import load_grammar
+
+  grammar = load_grammar("roskind/grammar.json")
+  print(grammar["start"])
+  for rule in grammar["productions"]:
+      print(rule["lhs"], rule["rhs"])
+
+For cfront, use "cfront/grammar.json" instead. When running from another
+folder, pass the full path or construct it relative to your script.
+
+Format
+  start          The original Yacc start symbol.
+  terminals      The token symbols actually used by the productions.
+  nonterminals   The names defined on the left-hand side of productions.
+  productions    An ordered list of {lhs, rhs, source_line, ...} objects.
+                 rhs is a list of symbols; [] is epsilon (the empty string).
+                 Several objects with the same lhs are union alternatives.
+                 Several symbols in one rhs are concatenated in order.
+  source         Original filename, download URL, and SHA-256 checksum.
+  source_notices Original copyright notices and translation attribution.
+  yacc           Original declared tokens, numeric codes, and precedence.
+  notes          Interpretation and limitations specific to the grammar.
+
+Example:
+  {"lhs": "translation_unit", "rhs": []}
+  {"lhs": "translation_unit", "rhs": ["translation_unit", "external_definition"]}
+
+In the .cfg view these appear as:
+  translation_unit ::= epsilon
+  translation_unit ::= translation_unit external_definition
+
+Quoted names in the .cfg files are terminals, e.g. "ID" or "(".
+Token names are whole symbols, not sequences of their individual letters.
+The .cfg files are a readable view; grammar_io.py reads the JSON files.
+
+Relationship to grammar_engine.py
+grammar_io.py reads the converted JSON data. The UI builds formula objects
+from those productions and runs the approximation and ambiguity algorithm
+in grammar_engine.py. An empty RHS becomes Epsilon; RHS symbols are joined
+with ConcatenationFormula, and alternatives for one nonterminal are joined
+with UnionFormula. Each name uses one Nonterminal object.
+
+Conversion scope
+These files describe the syntactic production rules over token categories.
+C/C++ action code is not executed; each omitted action's original line range
+and position in the RHS are retained in JSON. Mid-rule actions do not become
+extra nonterminals. Precedence declarations and %prec overrides are metadata,
+not applied to remove alternatives. No productions are deduplicated, pruned,
+or repaired. Original Yacc files remain unchanged. Original comments and
+explanations can be found via source_line in those files.
+
+Cfront starts at ext_def and parses one external definition at a time.
+Its EOFTOK (code 0) remains an explicit EOF terminal. Its built-in error
+symbol remains a distinguished recovery terminal. EMPTY, when in an RHS,
+remains a named token; an empty alternative with %prec EMPTY becomes epsilon.
+Its actions affect lexing, scopes and control flow, so this extraction does
+not claim to reproduce the executable compiler's accepted C++ source text.
+
+Roskind starts at translation_unit, which can derive an empty complete file.
+IDENTIFIER and TYPEDEFname stay distinct: a suitable lexer/symbol table would
+have to supply that classification. This release lacks templates and
+exceptions. The bundled demonstration lexer is not a complete C++ lexer.
+
+Neither candidate has been confirmed as the grammar used in the NSF report.
+See GRAMMAR_SOURCES.txt for the original provenance and historical context.
+
+Regeneration and validation (from the implementation folder)
+  python3 convert_yacc.py
+  python3 grammar_io.py cfront/grammar.json
+  python3 grammar_io.py roskind/grammar.json
+  python3 -m unittest test_grammar_io.py
+
+The tests cover quoted punctuation, nested C actions, comments, epsilon,
+omitted rule semicolons, duplicate alternatives, invalid symbols, source
+checksums and corpus counts. When Bison is available, they independently
+compare every converted production, in order, to Bison's reading of the
+unmodified original, removing only its augmented accept rule and empty
+action helper rules. Bison is not required to load the JSON inputs.
