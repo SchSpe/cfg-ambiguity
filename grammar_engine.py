@@ -1,7 +1,7 @@
 """Ambiguity detection for context-free grammars by approximating languages.
 
 This follows the algebraic view of ambiguity of Altman and Logothetis (see
-References in README.md). A grammar is read as a system of equations: each
+References below). A grammar is read as a system of equations: each
 nonterminal A has one definition, a formula built from terminals,
 nonterminals, ε, union and concatenation. The language of every nonterminal
 is approximated level by level:
@@ -36,6 +36,17 @@ it; formulas; Grammar, which runs the approximation and prints the reports,
 followed by the parser and the text helpers; and the recognition and repair
 of CACCs, the "certain ambiguity causing constructs" of the NSF report
 (Section 6).
+
+References
+
+    T. Altman and G. Logothetis. A note on ambiguity in context-free
+    grammars. Information Processing Letters 35(3):111–114, 1990.
+
+    T. Altman and G. Logothetis. An algebraic view of ambiguity in
+    context-free grammars and language expressions. Preprint, 2011.
+
+    T. Altman. Final report on National Science Foundation grant
+    CCR-9215731. Cited in the code as "the NSF report".
 """
 
 from collections import defaultdict

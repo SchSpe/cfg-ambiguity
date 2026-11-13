@@ -312,6 +312,6 @@ if __name__ == "__main__":
         convert(root / "cfront/gram.y", "Cfront 3.0.3",
                 "https://softwarepreservation.computerhistory.org/c_plus_plus/cfront/release_3.0.3/source/src/gram.y")
     else:
-        print("Cfront 3.0.3: cfront/gram.y not found, skipped (see README.md)")
+        print("Cfront 3.0.3: cfront/gram.y not found, skipped (see GRAMMAR_SOURCES.txt)")
     convert(root / "roskind/cpp5.y", "Roskind grammar release 2.0",
             "https://blog.robertelder.org/jim-roskind-grammar/c%2B%2Bgrammar2.0.tar.Z")

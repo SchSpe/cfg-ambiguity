@@ -7,7 +7,7 @@ Files
   roskind/grammar.cfg  - the same productions in readable ::= notation
 
 The cfront files are not distributed; convert_yacc.py creates them after
-cfront/gram.y is fetched as described in README.md.
+cfront/gram.y is fetched as described in GRAMMAR_SOURCES.txt.
 
 Read them in Python (working in the implementation folder):
 
@@ -81,11 +81,3 @@ Regeneration and validation (from the implementation folder)
   python3 convert_yacc.py
   python3 grammar_io.py cfront/grammar.json
   python3 grammar_io.py roskind/grammar.json
-  python3 -m unittest test_grammar_io.py
-
-The tests cover quoted punctuation, nested C actions, comments, epsilon,
-omitted rule semicolons, duplicate alternatives, invalid symbols, source
-checksums and corpus counts. When Bison is available, they independently
-compare every converted production, in order, to Bison's reading of the
-unmodified original, removing only its augmented accept rule and empty
-action helper rules. Bison is not required to load the JSON inputs.

@@ -24,7 +24,7 @@ STATIC = ROOT / "ui"
 
 
 def grammar_ids():
-    # Cfront is not distributed; it is listed once fetched and converted (see README.md).
+    # Cfront is not distributed; it is listed once fetched and converted (see GRAMMAR_SOURCES.txt).
     return [name for name in ("roskind", "expression", "cfront")
             if name != "cfront" or (ROOT / "cfront" / "grammar.json").exists()]
 
@@ -33,7 +33,7 @@ def dataset(name):
     if name in ("roskind", "cfront"):
         path = ROOT / name / "grammar.json"
         if not path.exists():
-            raise ValueError(f"{name}/grammar.json is missing; see README.md")
+            raise ValueError(f"{name}/grammar.json is missing; see CONVERTED_GRAMMARS.txt")
         return load_grammar(path)
     if name == "expression":
         return {

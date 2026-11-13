@@ -45,17 +45,6 @@ Stopping or reaching the limit leaves completed levels readable. Snapshots are
 cached in .ui_cache and compatible levels survive restart. Original grammar
 files and grammar_engine.py are not changed by the UI.
 
-Checks:
-
-    python3 -m unittest discover -v
-    node test_ui_browser.cjs
-
-The browser check requires Playwright and Chrome. Set GRAMMAR_PLAYWRIGHT to the
-module path, GRAMMAR_CHROME_PATH to the browser executable, or GRAMMAR_BASE_URL
-to another port when needed. It uses an isolated headless browser, browses
-saved levels, and writes screenshots under ui_artifacts. The optional larger
-backend check is python3 verify_ui_roskind.py.
-
 Roskind grammar: Portions Copyright (c) 1989, 1990 James A. Roskind.
 Original source notices remain in roskind/grammar.json, roskind/cpp5.y,
 GRAMMAR_SOURCES.txt, and CONVERTED_GRAMMARS.txt.

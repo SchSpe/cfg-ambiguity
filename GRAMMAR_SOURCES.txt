@@ -25,7 +25,9 @@ All downloaded/extracted source files are preserved byte-for-byte.
    of the copyright owner for historical research purposes only.
    The original copyright/proprietary notices are retained in gram.y.
    For that reason gram.y and its conversions are not distributed in this
-   repository; README.md explains how to fetch, verify and convert it.
+   repository. To use the grammar locally, save the source file above as
+   cfront/gram.y, check it against the SHA-256 listed below and run
+   python3 convert_yacc.py; cfront/ is in .gitignore.
 
 2. roskind/cpp5.y
 
