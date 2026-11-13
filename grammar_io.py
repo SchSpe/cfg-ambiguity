@@ -17,7 +17,13 @@ from pathlib import Path
 def load_grammar(path):
     """Return validated grammar data, retaining source and Yacc metadata."""
     with Path(path).open(encoding="utf-8") as source:
-        grammar = json.load(source)
+        return validate_grammar(json.load(source))
+
+
+def validate_grammar(grammar):
+    """Check grammar data in the cfg-productions-v1 format and return it."""
+    if not isinstance(grammar, dict):
+        raise ValueError("Grammar data must be an object")
     if grammar.get("format") != "cfg-productions-v1":
         raise ValueError("Unsupported grammar format")
     for key in ("terminals", "nonterminals"):
@@ -36,6 +42,8 @@ def load_grammar(path):
         raise ValueError("No productions")
     defined = set()
     for rule in grammar["productions"]:
+        if not isinstance(rule, dict):
+            raise ValueError("Each production must be an object with lhs and rhs")
         if rule["lhs"] not in nonterminals:
             raise ValueError(f"Unknown left-hand side: {rule['lhs']}")
         defined.add(rule["lhs"])

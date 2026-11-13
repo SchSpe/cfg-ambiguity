@@ -91,22 +91,44 @@ def build_grammar(data):
     return GrammarCatalog(data)
 
 
+def finding_from_record(record, catalog):
+    """The AmbiguityFinding a saved record was made from: summarize_finding's
+    record, with the raw_factorizations the worker adds."""
+    owner = catalog.nonterminals[record["owner"]]
+    formula = owner.definition
+    for part in record["path"]:
+        formula = formula.formula if part == "inner" else getattr(formula, part)
+    pairs = record.get("raw_factorizations")
+    pairs = tuple((implementation.Sentence.from_symbols(left), implementation.Sentence.from_symbols(right))
+                  for left, right in pairs) if pairs else None
+    return implementation.AmbiguityFinding(
+        record["kind"], implementation.Sentence.from_symbols(record["witness"]), owner, formula,
+        record["level"], tuple(record["path"]), pairs, alternatives=record.get("alternative_paths", ()))
+
+
 def summarize_finding(finding, catalog):
     catalog.check_finding(finding)
     witness = list(finding.sentence.symbols)
+    alternatives = [list(path) for path in finding.alternatives]
     key = [finding.kind, finding.nonterminal.name, finding.iteration, list(finding.path), witness]
     if finding.factorizations is not None:
         key.append(sorted(len(left.symbols) for left, _ in finding.factorizations))
+    if alternatives:
+        key.append(alternatives)
     identifier = hashlib.sha256(json.dumps(key, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:20]
+    # The rules of a union's two alternatives, or every rule at or below the path.
+    sites = [tuple(path) for path in alternatives] or [tuple(finding.path)]
     return {
         "id": identifier,
         "kind": finding.kind,
         "owner": finding.nonterminal.name,
         "level": finding.iteration,
         "path": list(finding.path),
+        "alternative_paths": alternatives,
         "expression": implementation.format_formula(finding.formula),
         "witness": witness,
-        "candidate_production_ids": list(catalog.site_rules[finding.nonterminal.name, tuple(finding.path)]),
+        "candidate_production_ids": [rule_id for path in sites
+                                     for rule_id in catalog.site_rules[finding.nonterminal.name, path]],
         "scope": "local",
         "scope_note": "This proves ambiguity at the marked formula in this nonterminal's definition; it does not by itself prove ambiguity of the start symbol.",
     }
@@ -216,13 +238,15 @@ class WitnessParser:
         return tree
 
 
-def _selected_production(catalog, owner, path, tree):
-    while len(catalog.site_rules[owner, path]) > 1:
-        if tree["kind"] != "union":
-            raise ValueError("Production provenance does not match the derivation")
-        path += (tree["branch"],)
-        tree = tree["children"][0]
-    return catalog.site_rules[owner, path][0], tree
+def _alternative_rule(catalog, owner, path, side, alternative):
+    """The production whose alternative is at `alternative`, which must lie on
+    the `side` of the union at `path`."""
+    alternative = tuple(alternative)
+    rules = catalog.site_rules.get((owner, alternative), ())
+    if (alternative[:len(path) + 1] != path + (side,) or len(rules) != 1
+            or catalog.rule_paths[rules[0]] != alternative):
+        raise ValueError("The union alternatives do not match the finding's recorded formula location")
+    return rules[0]
 
 
 def _production_tree(catalog, rule_id, tree, level):
@@ -262,14 +286,15 @@ def _prove_finding(finding, catalog, result, parser):
     if finding.kind == "union":
         if not isinstance(finding.formula, implementation.UnionFormula):
             raise ValueError("A union finding must refer to a union formula")
+        if len(finding.alternatives) != 2:
+            raise ValueError("A union finding must name its two alternatives")
         alternatives = []
-        for side in ("left", "right"):
-            formula = getattr(finding.formula, side)
-            tree = parser.require(formula, budget, 0, len(word))
-            rule_id, selected = _selected_production(catalog, owner, path + (side,), tree)
-            derivation = _production_tree(catalog, rule_id, selected, finding.iteration)
+        for side, alternative in zip(("left", "right"), finding.alternatives):
+            rule_id = _alternative_rule(catalog, owner, path, side, alternative)
+            tree = parser.require(catalog.rule_formulas[rule_id], budget, 0, len(word))
+            derivation = _production_tree(catalog, rule_id, tree, finding.iteration)
             alternatives.append({"side": side, "expression": implementation.format_formula(catalog.rule_formulas[rule_id]),
-                                 "operand_expression": implementation.format_formula(formula),
+                                 "operand_expression": implementation.format_formula(getattr(finding.formula, side)),
                                  "production_id": rule_id, "derivation": derivation})
             derivations.append(derivation)
             production_ids.add(rule_id)

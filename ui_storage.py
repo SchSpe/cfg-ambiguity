@@ -211,6 +211,15 @@ def list_findings(path, nonterminal=None, offset=0, limit=25):
         connection.close()
 
 
+def read_findings(path):
+    """Every finding record saved with a level, in the order found."""
+    connection = _open_snapshot(path)
+    try:
+        return [json.loads(row[0]) for row in connection.execute("SELECT payload FROM findings ORDER BY position")]
+    finally:
+        connection.close()
+
+
 def get_finding(path, finding_id):
     connection = _open_snapshot(path)
     try:

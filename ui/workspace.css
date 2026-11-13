@@ -1,0 +1,529 @@
+:root {
+  color-scheme: light;
+  --page: #f0ead6;      /* eggshell */
+  --panel-line: #e0d8c3;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --card-hover: #f7f9fc;
+  --line: #dce4ec;
+  --line-soft: #e9eef4;
+  --ink: #243442;
+  --muted: #5f7185;
+  --faint: #a3b1bf;
+  --edge: #8291a2;
+  --blue: #234fb8;
+  --blue-wash: #f1f5fd;
+  --blue-line: #a9bddf;
+  --rose: #ac334b;
+  --rose-wash: #fff3f5;
+  --focus: #3d6ad0;
+  --toast: #243442;
+  --toast-ink: #ffffff;
+  --display: #1c2631;
+  --display-ink: #e3eaf2;
+  --display-muted: #93a4b6;
+  --display-error: #f39aae;
+  --sans: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  --serif: Georgia, "Times New Roman", serif;
+  --numerals: "Palatino Linotype", Palatino, "Book Antiqua", "Iowan Old Style", Georgia, serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --margin: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #131a22;
+    --panel-line: #2f3b49;
+    --panel: #1a222c;
+    --card: #1f2833;
+    --card-hover: #243040;
+    --line: #2f3b49;
+    --line-soft: #283441;
+    --ink: #dde6ef;
+    --muted: #9aabbd;
+    --faint: #66788b;
+    --edge: #71839a;
+    --blue: #93b2f4;
+    --blue-wash: #1f2c44;
+    --blue-line: #4b6699;
+    --rose: #f1899f;
+    --rose-wash: #3a1f28;
+    --focus: #6f93e0;
+    --toast: #e3eaf2;
+    --toast-ink: #18212b;
+    --display: #0e141b;
+    --display-ink: #dde6ef;
+    --display-muted: #8a9cb0;
+    --display-error: #f1899f;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h2, h3, p { margin: 0; }
+button, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Layout: three columns by purpose, each a third of the width and the full
+   height: writing the rules, the ambiguities found in them, and the
+   evidence for the selected ambiguity. Above the ambiguities, a box about
+   a sixth of the height sets the approximation level and shows its counts. */
+.workspace {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(132px, 1fr) minmax(0, 5fr);
+  grid-template-areas:
+    "rules approx evidence"
+    "rules ambiguities evidence";
+  gap: var(--margin);
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--margin);
+}
+.rules-panel { grid-area: rules; }
+.approx-panel { grid-area: approx; }
+.ambiguities-panel { grid-area: ambiguities; }
+.evidence-panel { grid-area: evidence; }
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+/* Header */
+/* The same minimum height in every panel, so their dividers line up. */
+.panel-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  align-content: start;
+  row-gap: 4px;
+  min-height: 93px;
+  padding: 16px 14px 14px 22px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ambiguities-panel .panel-header { min-height: 0; }
+.panel-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.panel-title h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.rule-count {
+  font: 17px/1 var(--numerals);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--muted);
+}
+.panel-tools { display: flex; gap: 2px; }
+.grammar-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 16px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* Long names wrap rather than being cut off. */
+.grammar-name, .grammar-start { min-width: 0; overflow-wrap: anywhere; }
+.grammar-start { margin-left: auto; }
+.grammar-start b { font-weight: 650; color: var(--ink); }
+.grammar-start.is-undefined b { color: var(--rose); }
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.icon-button svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-button:hover:not(:disabled) { background: var(--blue-wash); color: var(--blue); }
+.icon-button:active:not(:disabled) { transform: translateY(1px); }
+.icon-button:disabled { color: var(--faint); cursor: default; }
+
+/* Scrolling lists */
+.panel-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* --toast-space keeps the selected card clear of a toast. */
+  padding: 14px 14px max(24px, var(--toast-space, 0px));
+  scroll-padding: 14px 0 max(24px, var(--toast-space, 0px));
+}
+
+/* Rules */
+.rule-list { list-style: none; margin: 0; padding: 0; --digits: 1; }
+
+.rule {
+  display: grid;
+  grid-template-columns: calc(var(--digits) * 0.58em + 30px) minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  box-shadow: var(--ring, 0 0 #0000);
+  cursor: default;
+  user-select: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+/* Alternatives of one nonterminal sit closer together than separate nonterminals. */
+.rule + .rule { margin-top: 5px; }
+.rule.group-start { margin-top: 14px; }
+.rule:hover { background: var(--card-hover); }
+/* Selection thickens the border as well as tinting the card. */
+.rule[aria-selected="true"] { --ring: 0 0 0 1px var(--blue); border-color: var(--blue); background: var(--blue-wash); }
+.rule:focus { outline: none; }
+.rule:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Numbered like equations in a paper: serif figures, right-aligned in a gutter. */
+.rule-number {
+  padding: 11px 10px 11px 0;
+  border-right: 1px solid var(--line-soft);
+  text-align: right;
+  font: 16px/26px var(--numerals);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--muted);
+}
+.rule[aria-selected="true"] .rule-number { color: var(--blue); border-right-color: var(--blue-line); }
+
+.rule-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 9px;
+  padding: 11px 14px 11px 13px;
+  line-height: 26px;
+  min-width: 0;
+}
+.rule-lhs { font-weight: 650; overflow-wrap: anywhere; }
+.rule-arrow { font-family: var(--serif); font-weight: 400; color: var(--muted); }
+/* The right side stays beside the arrow when it fits, and otherwise takes its own line. */
+.rule-rhs {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.symbol { min-width: 0; overflow-wrap: anywhere; }
+/* Terminals are set in monospace; nonterminals in the text face. */
+.terminal { font: 13.5px/26px var(--mono); white-space: pre-wrap; }
+.epsilon { font: italic 17px/26px var(--serif); color: var(--muted); }
+
+/* Editing a rule in place */
+.rule.is-editing { --ring: 0 0 0 3px var(--blue-wash); border-color: var(--blue); background: var(--panel); }
+.rule.is-editing .rule-number { color: var(--blue); }
+.rule.is-invalid { --ring: 0 0 0 3px var(--rose-wash); border-color: var(--rose); }
+.rule-edit { padding: 8px 12px 10px 9px; min-width: 0; }
+.rule-input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 3px 4px;
+  border: 0;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  font: 14px/23px var(--mono);
+  user-select: text;
+}
+.rule-input:focus, .rule-input:focus-visible { outline: none; }
+.rule-input::placeholder { color: var(--muted); }
+.rule-hint { margin: 4px 4px 0; font-size: 12px; color: var(--muted); }
+.rule-error { margin: 6px 4px 0; font-size: 13px; line-height: 1.45; color: var(--rose); }
+
+/* Empty list. "safe" keeps a message taller than the panel scrollable from its top. */
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  justify-content: safe center;
+  align-items: center;
+  gap: 6px;
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+}
+.empty-state p:empty { display: none; }
+.empty-state h3 { font-size: 16px; font-weight: 650; color: var(--ink); }
+.empty-state p { max-width: 30ch; font-size: 14px; }
+.empty-state .empty-formats { margin-top: 6px; font-size: 13px; }
+
+/* Dropping a file on the panel */
+.drop-overlay {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  border: 2px dashed var(--blue-line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--blue);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.drop-overlay svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rules-panel.is-dropping .drop-overlay { opacity: 1; }
+
+/* Messages after delete, import and errors */
+.toast {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px 8px 16px;
+  border-radius: 12px;
+  background: var(--toast);
+  color: var(--toast-ink);
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: 0 12px 30px -12px rgb(20 30 40 / 50%);
+  animation: toast-in 0.16s ease-out;
+}
+.toast p { flex: 1; min-width: 0; padding-right: 6px; overflow-wrap: anywhere; }
+.toast .icon-button { flex-shrink: 0; width: 34px; height: 34px; color: inherit; }
+.toast .icon-button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; }
+.toast :focus-visible { outline-color: currentColor; }
+.toast.is-error { background: var(--rose-wash); color: var(--rose); border: 1px solid color-mix(in srgb, var(--rose) 35%, transparent); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Approximation: the level to approximate to, then a display of the start
+   symbol's sentences and the ambiguities found at it, which roll up as each
+   level finishes. The last line says what the engine is doing, or why it
+   stopped, and keeps its place when empty so nothing moves. */
+.panel.approx-panel {
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 10px 10px 18px;
+  border-color: var(--display);
+  background: var(--display);
+  color: var(--display-ink);
+  font: 13.5px/1.55 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.approx-form { display: flex; align-items: center; gap: 1ch; min-width: 0; color: var(--display-muted); }
+.approx-form label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.approx-level {
+  flex: none;
+  width: 5ch;
+  height: 26px;
+  margin: 0;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--display-ink) 24%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--display-ink) 7%, transparent);
+  color: var(--display-ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.approx-level::-webkit-outer-spin-button,
+.approx-level::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.approx-level:focus-visible { outline: 2px solid var(--display-muted); outline-offset: 1px; }
+.approx-form .icon-button { flex: none; width: 30px; height: 30px; color: var(--display-ink); }
+.approx-form .approx-run { margin-left: auto; }
+.approx-form .icon-button:hover:not(:disabled) { background: color-mix(in srgb, var(--display-ink) 12%, transparent); color: var(--display-ink); }
+.approx-form .icon-button:disabled { color: var(--display-muted); opacity: 0.5; }
+.approx-form .icon-button:focus-visible { outline-color: var(--display-muted); }
+.approx-readout { display: grid; min-width: 0; }
+.readout-line { margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.readout-value { font-weight: 700; }
+.readout-status { min-height: 21px; min-height: 1lh; color: var(--display-muted); }
+.readout-status.is-error { color: var(--display-error); }
+.approx-readout.is-stale .readout-value { color: var(--display-muted); }
+
+/* Ambiguities: one card per ambiguous union or concatenation, showing the
+   rules involved. ∪ marks a union, · a concatenation, as on the demo page. */
+.ambiguity-list { list-style: none; margin: 0; padding: 0; }
+.ambiguity-list.is-stale { opacity: 0.45; transition: opacity 0.2s; }
+.ambiguity {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  box-shadow: var(--ring, 0 0 #0000), var(--stripe, 0 0 #0000);
+  cursor: default;
+  user-select: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.ambiguity + .ambiguity { margin-top: 8px; }
+.ambiguity.union { --stripe: inset 4px 0 0 var(--rose); }
+.ambiguity.concat { --stripe: inset 4px 0 0 var(--blue); }
+.ambiguity:hover { background: var(--card-hover); }
+.ambiguity.union[aria-selected="true"] { --ring: 0 0 0 1px var(--rose); border-color: var(--rose); background: var(--rose-wash); }
+.ambiguity.concat[aria-selected="true"] { --ring: 0 0 0 1px var(--blue); border-color: var(--blue); background: var(--blue-wash); }
+.ambiguity:focus { outline: none; }
+.ambiguity:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.flag {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border-radius: 7px;
+  font: 17px/1 var(--serif);
+  color: var(--panel);
+}
+.flag.union { background: var(--rose); }
+.flag.concat { background: var(--blue); font-size: 22px; font-weight: 700; }
+.ambiguity-rules { display: grid; gap: 3px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+/* Rules not yet confirmed by the proof (a union's candidates) are dimmed. */
+.ambiguity.is-pending .ambiguity-rules { opacity: 0.5; }
+.ambiguity-rule { display: flex; align-items: baseline; gap: 10px; line-height: 26px; }
+.ambiguity-number {
+  flex-shrink: 0;
+  min-width: 1.6em;
+  text-align: right;
+  font: 15px/26px var(--numerals);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--muted);
+}
+.ambiguity-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-width: 0; overflow-wrap: anywhere; }
+/* Where a concatenation's rule splits two ways. */
+.ambiguity-split { width: 2px; height: 20px; align-self: center; border-radius: 1px; background: var(--blue); }
+
+/* Evidence: the witness w and two parse trees for it, over one row of tokens. */
+#evidence.is-stale { opacity: 0.45; transition: opacity 0.2s; }
+.panel-scroll.evidence-scroll { padding: 16px 16px max(24px, var(--toast-space, 0px)); }
+.evidence-witness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+  overflow-wrap: anywhere;
+}
+.witness-name { font: italic 18px var(--serif); }
+.evidence-error { margin-top: 14px; font-size: 13px; line-height: 1.45; color: var(--rose); overflow-wrap: anywhere; }
+.tree-figure { margin: 16px 0 0; }
+.tree-figure figcaption { margin-bottom: 6px; font: 600 13px var(--sans); color: var(--muted); }
+.tree-frame { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 11px; background: var(--card); }
+.tree { display: block; margin: 0 auto; }
+.tree-edges line { stroke: var(--edge); stroke-width: 1.4; }
+/* A token's drop to the shared row of tokens, below its parent's next row. */
+.tree-edges .tree-drop { stroke-dasharray: 2 3; }
+.tree-node { cursor: pointer; }
+.tree-node rect { fill: var(--panel); stroke: var(--line); }
+.tree-node:hover rect { fill: var(--blue-wash); stroke: var(--blue-line); }
+.tree-nt { font: 600 13px var(--sans); fill: var(--ink); }
+.tree-rule { font: 11px var(--numerals); fill: var(--muted); }
+/* Where the two trees differ: the root's rule for a union, the split for a concatenation. */
+.tree-node.is-root.union rect { fill: var(--rose-wash); stroke: var(--rose); stroke-width: 1.5; }
+.tree-node.is-root.union text { fill: var(--rose); }
+.tree-node.is-root.concat rect { fill: var(--blue-wash); stroke: var(--blue); stroke-width: 1.5; }
+.tree-node.is-root.concat text { fill: var(--blue); }
+.tree-node.is-partial rect { stroke-dasharray: 4 3; }
+.tree-leaf text { font: 13.5px var(--mono); fill: var(--ink); text-anchor: middle; }
+.tree-eps text { font: italic 15px var(--serif); fill: var(--muted); text-anchor: middle; }
+.tree-cut { stroke: var(--blue); stroke-width: 2; stroke-dasharray: 4 3; }
+
+/* Medium screens: rules on the left; approximation, ambiguities and evidence
+   stacked on the right. Below 800px of height the page scrolls rather than
+   squeezing them. */
+@media (max-width: 1180px) {
+  .workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(132px, 1fr) minmax(200px, 2fr) minmax(300px, 3fr);
+    grid-template-areas: "rules approx" "rules ambiguities" "rules evidence";
+    height: max(100vh, 800px);
+    height: max(100dvh, 800px);
+  }
+  .panel-scroll { overscroll-behavior: auto; }
+}
+
+/* Phones and short windows: the panels stack and the page scrolls. */
+@media (max-width: 760px), (max-height: 500px) {
+  :root { --margin: 12px; }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas: "rules" "approx" "ambiguities" "evidence";
+    height: auto;
+  }
+  .panel {
+    height: calc(100vh - 2 * var(--margin));
+    height: calc(100dvh - 2 * var(--margin));
+    min-height: 420px;
+    border-radius: 16px;
+  }
+  .approx-panel { height: 200px; min-height: 0; }
+  .ambiguities-panel { height: 60vh; height: 60dvh; min-height: 320px; }
+  .panel-header { padding-left: 18px; }
+  /* Scrolling past the end of a panel's list scrolls the page. */
+  .panel-scroll { overscroll-behavior: auto; }
+}
+
+@media (forced-colors: active) {
+  .rule[aria-selected="true"], .rule.is-editing, .ambiguity[aria-selected="true"] { border: 2px solid Highlight; }
+  .tree-node.is-root rect { stroke: Highlight; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation: none !important; transition: none !important; }
+}
