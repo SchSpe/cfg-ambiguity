@@ -79,8 +79,9 @@ to find parse trees. Use `--help` for the available options.
 `grammar_caccs.py` recognizes seven constructs: mixed recursion, self-embedding,
 duplicate alternatives, repeated optional expressions, transparent cycles,
 subsumed alternatives, and dangling suffixes. The report lists each match with
-its nonterminal and an explanation. These structural checks are independent of
-`--level`; a construct in an unreachable definition does not change the verdict.
+its nonterminal, source lines, and an explanation. These structural checks are
+independent of `--level`; a construct in an unreachable definition does not
+change the verdict.
 
 Rewrites are explicit Python calls using the same `CFG` returned by
 `grammar_engine.parse_grammar(text)`:
@@ -88,6 +89,10 @@ Rewrites are explicit Python calls using the same `CFG` returned by
 - `recognize_caccs(cfg)` returns the matches.
 - `apply_cacc(cfg, match)` applies one supported rewrite to a copy.
 - `transform_caccs(cfg, max_steps=100)` applies supported rewrites repeatedly.
+
+Matches identify rules by zero-based `production_indices`. For matches within
+a rule, `rhs_spans` contains `(production_index, start, end)` with an exclusive
+end position. Both refer directly to `cfg.productions`.
 
 The rewrite result contains `grammar`, `changes`, `remaining`, `limit_reached`,
 and `stalled`. A recognized construct can remain when its rewrite's conditions

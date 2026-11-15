@@ -1,28 +1,14 @@
-"""Recognize and rewrite certain ambiguity-causing constructs in parsed BNF.
+"""Recognize and rewrite seven certain ambiguity-causing constructs in BNF.
 
-The four NSF patterns and the three later structural patterns are kept here,
-independent of the finite-language checker. Rewrites return new CFG objects;
-input productions are never changed. Unchanged rules keep their source line,
-while generated rules use line 0. Structural recognition does not depend on
-an approximation level and is not a proof that all ambiguity has been removed.
+Rules stay (lhs, rhs) tuples throughout. Matches identify zero-based production
+occurrences and half-open RHS spans. Rewrites return new CFG objects; unchanged
+occurrences keep their source lines and generated productions use line 0.
 """
 
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, replace
-from typing import NamedTuple
+from dataclasses import dataclass, field
 
-from grammar_engine import CFG, Epsilon, UnionFormula, ConcatenationFormula
-
-
-@dataclass(eq=False)
-class Terminal:
-    symbol: str
-
-
-@dataclass(eq=False)
-class Nonterminal:
-    name: str
-    definition: object = None
+from grammar_engine import CFG
 
 
 @dataclass(frozen=True)
@@ -30,13 +16,14 @@ class CACCMatch:
     rule_id: str
     kind: str
     nonterminal: str
-    path: tuple
-    alternatives: tuple
+    production_indices: tuple
+    rhs_spans: tuple
     source: str
     reason: str
     rewrite_available: bool
     rewrite_reason: str
     _productions: tuple = field(repr=False, compare=False)
+    _details: tuple = field(default=(), repr=False)
 
 
 @dataclass(frozen=True)
@@ -57,524 +44,87 @@ class CACCResult:
     stalled: bool = False
 
 
-@dataclass
-class _Graph:
-    terminals: tuple
-    nonterminals: tuple
-
-
-@dataclass
-class _Match:
-    rule_id: str
-    kind: str
-    nonterminal: Nonterminal
-    path: tuple
-    formula: object
-    replacement: object
-    source: str
-    reason: str
-    details: object = None
-    alternatives: tuple = ()
-
-
-def _join(formulas, operator):
-    formulas = list(formulas)
-    if operator is ConcatenationFormula:
-        formulas = [formula for formula in formulas if not isinstance(formula, Epsilon)]
-    if not formulas:
-        return Epsilon()
-    result = formulas[0]
-    for formula in formulas[1:]:
-        result = operator(result, formula)
-    return result
-
-
-def _flatten(formula, operator, path=()):
-    if isinstance(formula, operator):
-        return (_flatten(formula.left, operator, path + ("left",))
-                + _flatten(formula.right, operator, path + ("right",)))
-    return [(formula, path)]
-
-
-def _walk_formula(formula, path=()):
-    yield formula, path
-    if isinstance(formula, (UnionFormula, ConcatenationFormula)):
-        yield from _walk_formula(formula.left, path + ("left",))
-        yield from _walk_formula(formula.right, path + ("right",))
-
-
-def _formula_at(formula, path):
-    for side in path:
-        formula = getattr(formula, side)
-    return formula
-
-
-def _format_formula(formula):
-    if isinstance(formula, Terminal):
-        return formula.symbol
-    if isinstance(formula, Nonterminal):
-        return formula.name
-    if isinstance(formula, Epsilon):
-        return "ε"
-    separator = " | " if isinstance(formula, UnionFormula) else " "
-    return "(" + separator.join(_format_formula(item) for item, _ in _flatten(formula, type(formula))) + ")"
-
-
-def _definition_text(nt):
-    return nt.name + " ::= " + " | ".join(_format_formula(item) for item, _ in _flatten(nt.definition, UnionFormula))
-
-
-def _build_graph(cfg):
-    terminals = {name: Terminal(name) for name in cfg.terminals}
-    nonterminals = {name: Nonterminal(name) for name in cfg.nonterminals}
-    symbols = terminals | nonterminals
-    alternatives = {name: [] for name in cfg.nonterminals}
-    for lhs, rhs in cfg.productions:
-        alternatives[lhs].append(_join((symbols[name] for name in rhs), ConcatenationFormula))
-    for name, nt in nonterminals.items():
-        nt.definition = _join(alternatives[name], UnionFormula)
-    return _Graph(tuple(terminals.values()), tuple(nonterminals.values()))
-
-
-def _to_cfg(graph, original):
-    """Name nested choices rather than distributing them into large products."""
-    nonterminals = list(graph.nonterminals)
-    nested = {}
-    productions = []
-    index = 0
-    while index < len(nonterminals):
-        owner = nonterminals[index]
-        index += 1
-        for alternative, _ in _flatten(owner.definition, UnionFormula):
-            rhs = []
-            for factor, _ in _flatten(alternative, ConcatenationFormula):
-                if isinstance(factor, Epsilon):
-                    continue
-                if isinstance(factor, UnionFormula):
-                    if factor not in nested:
-                        helper = Nonterminal(_fresh_name(graph, owner.name + "_part", nonterminals))
-                        helper.definition = factor
-                        nested[factor] = helper
-                        nonterminals.append(helper)
-                    factor = nested[factor]
-                rhs.append(factor.symbol if isinstance(factor, Terminal) else factor.name)
-            productions.append((owner.name, tuple(rhs)))
-    sources = defaultdict(deque)
-    for rule, line in zip(original.productions, original.production_lines):
-        sources[rule].append(line)
-    lines = [sources[rule].popleft() if sources[rule] else 0 for rule in productions]
-    return CFG(productions, lines)
-
-
-def _selection(match):
-    owner = match.nonterminal.name if isinstance(match, _Match) else match.nonterminal
-    return match.rule_id, owner, match.path, match.alternatives
-
-
-def _available(graph, match):
-    if match.rule_id != "dangling_suffix":
-        return True
-    return bool(_dangling_group(_Productions(graph.nonterminals), match.nonterminal, match.details[-1]))
-
-
-def _public_match(cfg, graph, match):
-    available = _available(graph, match)
-    return CACCMatch(match.rule_id, match.kind, match.nonterminal.name, match.path,
-                     match.alternatives, match.source, match.reason, available,
-                     "" if available else "The nearest-binding rewrite does not support this recursive or nullable context.",
-                     cfg.productions)
-
-
-def recognize_caccs(cfg):
-    """Return structural matches, including matches whose rewrite is unsupported."""
-    graph = _build_graph(cfg)
-    return [_public_match(cfg, graph, match) for match in _recognize_caccs(graph)]
-
-
-def apply_cacc(cfg, match):
-    """Apply one recognized match to a copy, or return stalled when unsupported.
-
-    A match from a different or edited grammar raises ValueError. Unsupported
-    rewrites leave every production and source line unchanged.
-    """
-    if not isinstance(match, CACCMatch) or match._productions != cfg.productions:
-        raise ValueError("The CACC match belongs to a different or edited grammar")
-    graph = _build_graph(cfg)
-    selected = next((item for item in _recognize_caccs(graph) if _selection(item) == _selection(match)), None)
-    if selected is None:
-        raise ValueError("The CACC match is no longer present in this grammar")
-    if not _available(graph, selected):
-        result = CFG(cfg.productions, cfg.production_lines)
-        return CACCResult(result, [], recognize_caccs(result), stalled=True)
-    rewritten, change = _apply_cacc(graph, selected)
-    stalled = _grammar_key(rewritten) == _grammar_key(graph)
-    result = CFG(cfg.productions, cfg.production_lines) if stalled else _to_cfg(rewritten, cfg)
-    change = replace(change, introduced=tuple(name for name in result.nonterminals if name not in cfg.nonterminals))
-    return CACCResult(result, [] if stalled else [change], recognize_caccs(result), stalled=stalled)
-
-
-def transform_caccs(cfg, max_steps=100):
-    """Apply supported rewrites until none remain, no progress is possible, or the limit is reached."""
-    if type(max_steps) is not int or max_steps < 0:
-        raise ValueError("max_steps must be a nonnegative integer")
-    result = CFG(cfg.productions, cfg.production_lines)
-    seen = {result.productions}
-    changes = []
-    stalled = False
-    while len(changes) < max_steps:
-        graph = _build_graph(result)
-        matches = _recognize_caccs(graph)
-        if not matches:
-            break
-        for match in matches:
-            if not _available(graph, match):
-                continue
-            candidate, change = _apply_cacc(graph, match)
-            if _grammar_key(candidate) == _grammar_key(graph):
-                continue
-            candidate = _to_cfg(candidate, result)
-            key = candidate.productions
-            if key not in seen:
-                break
-        else:
-            stalled = True
-            break
-        change = replace(change, introduced=tuple(name for name in candidate.nonterminals if name not in result.nonterminals))
-        result = candidate
-        seen.add(key)
-        changes.append(change)
-    remaining = recognize_caccs(result)
-    return CACCResult(result, changes, remaining, bool(remaining) and len(changes) == max_steps, stalled)
-
-
-def _formula_key(formula, names=False):
-    """A key that is equal for formulas differing only in grouping.
-
-    Nonterminals compare by identity, or by name when `names` is set, which
-    allows two grammars to be compared.
-    """
-    if isinstance(formula, Terminal):
-        return ("terminal", formula.symbol)
-    if isinstance(formula, Nonterminal):
-        return ("nonterminal", formula.name if names else formula)
-    if isinstance(formula, Epsilon):
-        return ("epsilon",)
-    operator = type(formula)
-    return (operator.__name__, tuple(_formula_key(item, names) for item, _ in _flatten(formula, operator)))
-
-
-def _grammar_key(grammar):
-    return tuple((nt.name, _formula_key(nt.definition, names=True)) for nt in grammar.nonterminals)
-
-
-class _Derives(NamedTuple):
-    """What a formula can derive."""
-    any_sentence: bool          # at least one sentence
-    nonempty_sentence: bool     # at least one sentence other than ε
-
-
-def _derives(formula, known):
-    """What `formula` derives, given what each nonterminal is `known` to derive."""
-    if isinstance(formula, Terminal):
-        return _Derives(True, True)
-    if isinstance(formula, Epsilon):
-        return _Derives(True, False)
-    if isinstance(formula, Nonterminal):
-        return known[formula]
-    left = _derives(formula.left, known)
-    right = _derives(formula.right, known)
-    if isinstance(formula, UnionFormula):
-        return _Derives(left.any_sentence or right.any_sentence,
-                        left.nonempty_sentence or right.nonempty_sentence)
-    return _Derives(left.any_sentence and right.any_sentence,
-                    (left.nonempty_sentence and right.any_sentence)
-                    or (left.any_sentence and right.nonempty_sentence))
-
-
-def _nonterminal_derives(grammar):
-    """What each nonterminal derives: the least fixed point of _derives."""
-    known = {nt: _Derives(False, False) for nt in grammar.nonterminals}
-    while True:
-        updated = {nt: _derives(nt.definition, known) for nt in grammar.nonterminals}
-        if updated == known:
-            return known
-        known = updated
-
-
-_CACC_SOURCE = "NSF report, Section 6, "
-
-
-def _recognize_caccs(grammar):
-    """All matches, in the order their rewrites are to run: transparent
-    cycles first, which the other union rewrites assume gone; subsumed
-    alternatives; dangling suffixes, which have to be rewritten before a
-    mixed recursion they hold; then mixed recursions, self embeddings and
-    the rest."""
-    known = _nonterminal_derives(grammar)
-    productions = _Productions(grammar.nonterminals)
-    mixed, embedded, local = [], [], []
-    for nt in grammar.nonterminals:
-        alternatives = [    # (alternative, its path, its factors)
-            (alternative, path, [factor for factor, _ in _flatten(alternative, ConcatenationFormula)])
-            for alternative, path in _flatten(nt.definition, UnionFormula)
-        ]
-        if known[nt].any_sentence and len(alternatives) >= 2:
-            mixed += _mixed_recursions(nt, alternatives, known)
-            embedded += _self_embeddings(nt, alternatives, known)
-        for formula, path in _walk_formula(nt.definition):
-            if not _productive_context(nt.definition, path, known):
-                continue
-            if isinstance(formula, UnionFormula):
-                local += _duplicate_union(nt, formula, path, known)
-            elif isinstance(formula, ConcatenationFormula):
-                local += _optional_squares(nt, formula, path, known, productions)
-    return (_transparent_cycles(productions) + _subsumed_alternatives(productions)
-            + _dangling_suffixes(productions) + mixed + embedded + local)
-
-
-def _productive_context(formula, path, known):
-    """A local ambiguity matters only if its surrounding product can derive a sentence."""
-    for side in path:
-        if isinstance(formula, ConcatenationFormula):
-            sibling = formula.right if side == "left" else formula.left
-            if not _derives(sibling, known).any_sentence:
-                return False
-        formula = getattr(formula, side)
-    return True
-
-
-def _mixed_recursions(nt, alternatives, known):
-    """A ::= β A | A γ | δ, where δ stands for all the other alternatives."""
-    matches = []
-    for _, beta_path, beta_factors in alternatives:         # β A
-        if beta_factors[-1] is not nt:
-            continue
-        beta = _join(beta_factors[:-1], ConcatenationFormula)
-        if not _derives(beta, known).any_sentence:
-            continue
-        for _, gamma_path, gamma_factors in alternatives:   # A γ
-            if gamma_path == beta_path or gamma_factors[0] is not nt:
-                continue
-            gamma = _join(gamma_factors[1:], ConcatenationFormula)
-            rest = [alternative for alternative, path, _ in alternatives
-                    if path not in (beta_path, gamma_path)]
-            if not rest or not _derives(gamma, known).any_sentence:
-                continue
-            matches.append(_Match(
-                "mixed_recursion", "union", nt, (), nt.definition, None,
-                _CACC_SOURCE + "Corollary 1 (p. 6)",
-                "Distinct productive prefix and suffix recursive alternatives overlap.",
-                (beta, gamma, _join(rest, UnionFormula)), (beta_path, gamma_path)))
-    return matches
-
-
-def _self_embeddings(nt, alternatives, known):
-    """A ::= A β A | γ, where γ stands for all the other alternatives."""
-    matches = []
-    for _, path, factors in alternatives:
-        if len(factors) < 2 or factors[0] is not nt or factors[-1] is not nt:
-            continue
-        beta = _join(factors[1:-1], ConcatenationFormula)
-        beta_derives = _derives(beta, known)
-        if not beta_derives.any_sentence:
-            continue
-        gamma = _join((alternative for alternative, other_path, _ in alternatives
-                       if other_path != path), UnionFormula)
-        replacement = UnionFormula(_join((nt, beta, gamma), ConcatenationFormula), gamma)
-        nonempty = known[nt].nonempty_sentence or beta_derives.nonempty_sentence
-        matches.append(_Match(
-            "self_embedding", "concatenation" if nonempty else "derivation",
-            nt, (), nt.definition, replacement,
-            _CACC_SOURCE + "Corollary 2 (p. 6)",
-            "A productive A beta A alternative permits distinct recursive associations.",
-            alternatives=(path,)))
-    return matches
-
-
-def _duplicate_union(nt, formula, path, known):
-    """X | X: an alternative that repeats an earlier one of the same union."""
-    first_seen = {}
-    retained = []
-    repeated = []
-    for alternative, alternative_path in _flatten(formula, UnionFormula, path):
-        key = _formula_key(alternative)
-        if key in first_seen and _derives(alternative, known).any_sentence:
-            repeated.append((first_seen[key], alternative_path))
-        else:
-            retained.append(alternative)
-            first_seen[key] = alternative_path
-    if not repeated:
-        return []
-    return [_Match(
-        "duplicate_union", "union", nt, path, formula, _join(retained, UnionFormula),
-        _CACC_SOURCE + "union idempotency (p. 6)",
-        "The same productive alternative occurs more than once.",
-        alternatives=repeated)]
-
-
-def _optional_squares(nt, formula, path, known, productions):
-    """(X | ε) (X | ε): two neighbouring factors that are the same optional X."""
-    factors = _flatten(formula, ConcatenationFormula, path)
-    if not all(_derives(factor, known).any_sentence for factor, _ in factors):
-        return []
-    matches = []
-    for i in range(len(factors) - 1):
-        (left, left_path), (right, right_path) = factors[i], factors[i + 1]
-        if (left is right and isinstance(left, Nonterminal)
-                and left in productions.nullable and left in productions.nonempty):
-            matches.append(_Match(
-                "optional_square", "concatenation", nt, path, formula, None,
-                _CACC_SOURCE + "optional-expression square (p. 6)",
-                "Either occurrence of the nullable nonterminal can supply the same nonempty block.",
-                details=(path, i), alternatives=(left_path, right_path)))
-            continue
-        body, other_body = _optional_body(left), _optional_body(right)
-        if (body is None or other_body is None
-                or _formula_key(body) != _formula_key(other_body)
-                or not _derives(body, known).any_sentence):
-            continue
-        square = _join((ConcatenationFormula(body, body), body, Epsilon()), UnionFormula)
-        rebuilt = [factor for factor, _ in factors[:i]] + [square] + [factor for factor, _ in factors[i + 2:]]
-        matches.append(_Match(
-            "optional_square", "concatenation" if _derives(body, known).nonempty_sentence else "derivation",
-            nt, path, formula, _join(rebuilt, ConcatenationFormula),
-            _CACC_SOURCE + "optional-expression square (p. 6)",
-            "Either optional factor can supply the same productive block.",
-            alternatives=(left_path, right_path)))
-    return matches
-
-
-def _optional_body(formula):
-    """The union of the other alternatives when one alternative of `formula`
-    is ε (X for X | ε), otherwise None."""
-    alternatives = _flatten(formula, UnionFormula)
-    if len(alternatives) >= 2:
-        for i, (alternative, _) in enumerate(alternatives):
-            if isinstance(alternative, Epsilon):
-                return _join((item for j, (item, _) in enumerate(alternatives) if i != j), UnionFormula)
-    return None
-
-
-# The three newer constructs work on productions: what a sequence of symbols
-# derives, which symbols derive ε, which can end a derivation.
-
-class _Productions:
-    """The definitions of `nonterminals` read as productions.
-
-    Every union of a definition is a symbol: the definition of each
-    nonterminal, and each union that is a factor of an alternative, a
-    nonterminal without a name. Each alternative is a production, its
-    right-hand side a tuple of symbols with the ε factors left out: a
-    terminal's symbol, a Nonterminal, or such a nested UnionFormula.
-
-    rules        {symbol: [(rhs, alternative, path)]}, the symbols in grammar
-                 order, a nested union after the nonterminal that holds it
-    owner, path  the nonterminal whose definition holds a symbol, and the
-                 symbol's path there (() for the nonterminal itself)
-    nullable, productive, nonempty
-                 the symbols that derive ε, some sentence, and some sentence
-                 other than ε; a terminal is productive and nonempty
-    """
-
-    def __init__(self, nonterminals):
-        self.rules, self.owner, self.path = {}, {}, {}
-        for nt in nonterminals:
-            self._read(nt, nt.definition, nt, ())
-        self.order = {symbol: index for index, symbol in enumerate(self.rules)}
+class _Facts:
+    """Shared nullable, productive, nonempty and corner facts for one rule set."""
+
+    def __init__(self, productions):
+        self.productions = tuple(productions)
+        self.rules = {}
+        for index, (lhs, rhs) in enumerate(self.productions):
+            self.rules.setdefault(lhs, []).append((index, rhs))
+        self.order = {name: index for index, name in enumerate(self.rules)}
         self.nullable = self._least(lambda rhs, found: all(symbol in found for symbol in rhs))
-        self.productive = self._least(lambda rhs, found: all(
-            self.is_terminal(symbol) or symbol in found for symbol in rhs))
-        self.nonempty = self._least(lambda rhs, found: self.derives_sentence(rhs) and any(
-            self.is_terminal(symbol) or symbol in found for symbol in rhs))
+        self.productive = self._least(lambda rhs, found: all(self.is_terminal(s) or s in found for s in rhs))
+        self.nonempty = self._least(lambda rhs, found: self.derives_sentence(rhs) and any(self.is_terminal(s) or s in found for s in rhs))
         self._steps, self._corners, self._ends = {}, {}, {}
 
-    def _read(self, symbol, formula, owner, path):
-        rules = self.rules[symbol] = []
-        self.owner[symbol], self.path[symbol] = owner, path
-        for alternative, alternative_path in _flatten(formula, UnionFormula, path):
-            rhs = []
-            for factor, factor_path in _flatten(alternative, ConcatenationFormula, alternative_path):
-                if not isinstance(factor, Epsilon):
-                    rhs.append(_symbol(factor))
-                if isinstance(factor, UnionFormula):
-                    self._read(factor, factor, owner, factor_path)
-            rules.append((tuple(rhs), alternative, alternative_path))
-
     def _least(self, holds):
-        """The least set of symbols with a production whose rhs `holds`, given the set."""
         found = set()
-        changed = True
-        while changed:
-            changed = False
-            for symbol, rules in self.rules.items():
-                if symbol not in found and any(holds(rhs, found) for rhs, _, _ in rules):
-                    found.add(symbol)
-                    changed = True
-        return found
+        while True:
+            before = len(found)
+            for lhs, rules in self.rules.items():
+                if any(holds(rhs, found) for _, rhs in rules):
+                    found.add(lhs)
+            if len(found) == before:
+                return found
 
     def is_terminal(self, symbol):
         return symbol not in self.rules
 
-    def derives_sentence(self, symbols):
-        return all(self.is_terminal(symbol) or symbol in self.productive for symbol in symbols)
+    def derives_sentence(self, rhs):
+        return all(self.is_terminal(s) or s in self.productive for s in rhs)
 
-    def derives_epsilon(self, symbols):
-        return all(symbol in self.nullable for symbol in symbols)
+    def derives_epsilon(self, rhs):
+        return all(s in self.nullable for s in rhs)
 
-    def derives_nonempty(self, symbols):
-        return self.derives_sentence(symbols) and any(
-            self.is_terminal(symbol) or symbol in self.nonempty for symbol in symbols)
+    def derives_nonempty(self, rhs):
+        return self.derives_sentence(rhs) and any(self.is_terminal(s) or s in self.nonempty for s in rhs)
 
-    def useful(self, symbol):
-        """The productions of `symbol` whose symbols all derive some sentence."""
-        return [rule for rule in self.rules[symbol] if self.derives_sentence(rule[0])]
+    def useful(self, lhs):
+        return [(index, rhs) for index, rhs in self.rules[lhs] if self.derives_sentence(rhs)]
 
     def steps(self, symbol, side):
-        """The symbols Y with a useful production `symbol` ::= σ Y τ where τ
-        is nullable (side "right"), σ is ("left"), or both are ("transparent")."""
+        """Useful X -> prefix Y suffix steps, with the indicated contexts nullable."""
         if side not in self._steps:
             self._steps[side] = {
-                lhs: [target for rhs, _, _ in self.useful(lhs) for i, target in enumerate(rhs)
-                      if not self.is_terminal(target)
+                lhs: [target for _, rhs in self.useful(lhs) for i, target in enumerate(rhs)
+                      if target in self.rules
                       and (side == "left" or self.derives_epsilon(rhs[i + 1:]))
                       and (side == "right" or self.derives_epsilon(rhs[:i]))]
                 for lhs in self.rules}
-        return self._steps[side].get(symbol, [])
+        return self._steps[side].get(symbol, ())
 
     def corners(self, symbol, side):
-        """The symbols that `symbol` reaches by steps(), itself included; for
-        side "right", the symbols at the right end of its derivations."""
-        key = (symbol, side)
+        key = symbol, side
         if key not in self._corners:
-            reached, stack = {symbol}, [symbol]
-            while stack:
-                for target in self.steps(stack.pop(), side):
+            reached, pending = {symbol}, [symbol]
+            while pending:
+                for target in self.steps(pending.pop(), side):
                     if target not in reached:
                         reached.add(target)
-                        stack.append(target)
+                        pending.append(target)
             self._corners[key] = reached
         return self._corners[key]
 
     def ends(self, side):
-        """{symbol: the symbols with a derivation whose first ("left") or last
-        ("right") symbol it is}, over all productions, unproductive ones too."""
+        """Reverse corner reachability, including unproductive rules, for chart pruning."""
         if side not in self._ends:
             first = {}
             for lhs, rules in self.rules.items():
                 first[lhs] = set()
-                for rhs, _, _ in rules:
+                for _, rhs in rules:
                     for symbol in (rhs if side == "left" else reversed(rhs)):
                         first[lhs].add(symbol)
                         if symbol not in self.nullable:
                             break
             hosts = defaultdict(set)
             for lhs in self.rules:
-                reached, stack = {lhs}, [lhs]
-                while stack:
-                    for symbol in first.get(stack.pop(), ()):
+                reached, pending = {lhs}, [lhs]
+                while pending:
+                    for symbol in first.get(pending.pop(), ()):
                         if symbol not in reached:
                             reached.add(symbol)
-                            stack.append(symbol)
+                            pending.append(symbol)
                 for symbol in reached:
                     hosts[symbol].add(lhs)
             self._ends[side] = hosts
@@ -583,8 +133,7 @@ class _Productions:
 
 class _Derivations:
     """Exact tests source ⇒* target between sequences of symbols, with the
-    productions of `productions` except `excluded` (a symbol and the index
-    of one of its productions), and the nullable symbols found again
+    productions except the occurrence `excluded`, and the nullable symbols found again
     without it.
 
     For each target, the symbols that derive each of its spans are found
@@ -594,9 +143,9 @@ class _Derivations:
 
     def __init__(self, productions, excluded=None):
         self.productions = productions
-        self.rules = {symbol: [rhs for index, (rhs, _, _) in enumerate(rules) if (symbol, index) != excluded]
+        self.rules = {symbol: [rhs for index, rhs in rules if index != excluded]
                       for symbol, rules in productions.rules.items()}
-        removed = productions.rules[excluded[0]][excluded[1]][0] if excluded else None
+        removed = productions.productions[excluded][1] if excluded is not None else None
         self.nullable = productions.nullable
         if removed is not None and productions.derives_epsilon(removed):     # perhaps the only way to ε
             self.nullable = set()
@@ -674,147 +223,6 @@ class _Derivations:
         return j in reached
 
 
-def _symbol(factor):
-    """The symbol of _Productions that a factor of an alternative stands for."""
-    return factor.symbol if isinstance(factor, Terminal) else factor
-
-
-def _factors(alternative):
-    """The factors of an alternative without its ε ones, one per symbol of its production."""
-    return [factor for factor, _ in _flatten(alternative, ConcatenationFormula)
-            if not isinstance(factor, Epsilon)]
-
-
-def _component(productions, symbol):
-    """The symbols that `symbol` reaches by transparent steps and that reach
-    it back, its strongly connected component, in grammar order."""
-    return sorted((other for other in productions.corners(symbol, "transparent")
-                   if symbol in productions.corners(other, "transparent")), key=productions.order.get)
-
-
-def _step_positions(productions, rhs, members):
-    """The positions of `members` in `rhs` whose context is nullable."""
-    return [i for i, symbol in enumerate(rhs)
-            if symbol in members and productions.derives_epsilon(rhs[:i] + rhs[i + 1:])]
-
-
-def _cycle_parts(productions, component):
-    """What rewriting a component of transparent steps needs: the symbols of
-    the steps' left and right contexts that lie outside it and derive a
-    nonempty sentence, as {"left": {symbol: a factor for it}, "right": …};
-    the alternatives that are not steps, the exits, as {key: (rhs,
-    alternative)}; and whether a context holds a member."""
-    members = set(component)
-    contexts = {"left": {}, "right": {}}
-    exits = {}
-    nested = False
-    for member in component:
-        for rhs, alternative, _ in productions.rules[member]:
-            factors = _factors(alternative)
-            positions = _step_positions(productions, rhs, members)
-            for i in positions:
-                for side, symbols, items in (("left", rhs[:i], factors[:i]),
-                                             ("right", rhs[i + 1:], factors[i + 1:])):
-                    for symbol, factor in zip(symbols, items):
-                        nested = nested or symbol in members
-                        if symbol not in members and symbol in productions.nonempty:
-                            contexts[side].setdefault(symbol, factor)
-            if not positions:
-                exits.setdefault(_formula_key(alternative), (rhs, alternative))
-    return contexts, exits, nested
-
-
-def _transparent_cycles(productions):
-    """X ::= σ Y τ with σ and τ nullable is a transparent step: every
-    sentence of Y is one of X. When such steps form a cycle, the symbols on
-    it share one language, so every sentence of an alternative δ of X that
-    is not a step is also one of each step α of X: X ::= δ | α is a union
-    ambiguity, as in A ::= A | d, or A ::= P A Q | d with P and Q nullable.
-    One match per strongly connected component of the steps, at its first
-    such pair; the rewrite rebuilds the whole component.
-
-    A cycle comes after the cycles that the nonempty versions of its
-    symbols would copy: with B ::= B C | ε and C ::= C C | c | ε, a C' made
-    while C ::= C C stands would be C' ::= C' C | C' | c, a cycle again."""
-    found, seen = [], set()
-    for symbol in productions.rules:
-        if symbol in seen:
-            continue
-        component = _component(productions, symbol)
-        seen.update(component)
-        if len(component) == 1 and symbol not in productions.steps(symbol, "transparent"):
-            continue
-        members = set(component)
-        for member in component:
-            useful = productions.useful(member)
-            steps = [path for rhs, _, path in useful if _step_positions(productions, rhs, members)]
-            exits = [path for rhs, _, path in useful if not _step_positions(productions, rhs, members)]
-            if steps and exits:
-                owner = productions.owner[member]
-                found.append((component, _Match(
-                    "transparent_cycle", "union", owner, productions.path[member],
-                    owner.definition if member is owner else member, None,
-                    "the cycles A ⇒+ A that grammars usually exclude, through nullable contexts",
-                    "The members of a cycle with nullable contexts derive each other's sentences, "
-                    "so a sentence of an exit is also one of a cycle step.",
-                    details=tuple(component), alternatives=(exits[0], steps[0]))))
-                break
-    cycle_of = {member: index for index, (component, _) in enumerate(found) for member in component}
-    ordered, visited = [], set()
-
-    def visit(index):
-        if index in visited:
-            return
-        visited.add(index)
-        contexts, exits, nested = _cycle_parts(productions, found[index][0])
-        versioned = [*contexts["left"], *contexts["right"]]
-        if nested:
-            versioned += [symbol for rhs, _ in exits.values() if productions.derives_epsilon(rhs)
-                          for symbol in rhs]
-        for symbol in versioned:
-            for reached in productions.corners(symbol, "left"):
-                if cycle_of.get(reached, index) != index:
-                    visit(cycle_of[reached])
-        ordered.append(found[index][1])
-
-    for index in range(len(found)):
-        visit(index)
-    return ordered
-
-
-def _subsumed_alternatives(productions):
-    """A ::= α | α' | γ, where α derives α' without the rule A ::= α'. Every
-    sentence of α' is then one of α too, and deleting A ::= α' keeps every
-    language, as α still derives α'. The test is exact, with the nullable
-    symbols found again without A ::= α': in A ::= ε | B, B ::= A, the ε of
-    B comes from A ::= ε, which must stay. A union nested in a definition
-    counts as well, as for a duplicate union, whose pairs of equal
-    alternatives are left to it."""
-    matches = []
-    for symbol, rules in productions.rules.items():
-        if len(rules) < 2:
-            continue
-        owner = productions.owner[symbol]
-        keys = [_formula_key(alternative) for _, alternative, _ in rules]
-        for index, (target, _, target_path) in enumerate(rules):
-            if not productions.derives_sentence(target):
-                continue
-            derivations = None
-            for other, (source, _, source_path) in enumerate(rules):
-                if keys[other] == keys[index]:
-                    continue
-                derivations = derivations or _Derivations(productions, (symbol, index))
-                if derivations.derives(source, target):
-                    kept = [alternative for i, (_, alternative, _) in enumerate(rules) if i != index]
-                    matches.append(_Match(
-                        "subsumed_alternative", "union", owner, productions.path[symbol],
-                        owner.definition if symbol is owner else symbol, _join(kept, UnionFormula),
-                        _CACC_SOURCE + "union idempotency (p. 6), extended to derivations",
-                        "One alternative derives another, so each sentence of the second is one of both.",
-                        alternatives=(source_path, target_path)))
-    return matches
-
-
 def _dangling_roles(productions, owner, mirrored):
     """The alternatives of `owner` read from the right end (from the left
     when `mirrored`), and {index of one: its roles}, each (role, (μ, X)):
@@ -822,11 +230,11 @@ def _dangling_roles(productions, owner, mirrored):
     owner. Only prefixes that something closes count: i S e S is closed
     after i, and open after i S e for nothing."""
     side = "left" if mirrored else "right"
-    alternatives = [rhs[::-1] if mirrored else rhs for rhs, _, _ in productions.rules[owner]]
+    alternatives = [rhs[::-1] if mirrored else rhs for _, rhs in productions.rules[owner]]
     useful = [productions.derives_sentence(rhs) for rhs in alternatives]
     kinds = {}      # (μ, X) of each open alternative μ X, in order
     for rhs, ok in zip(alternatives, useful):
-        if (ok and len(rhs) >= 2 and isinstance(rhs[-1], Nonterminal)
+        if (ok and len(rhs) >= 2 and rhs[-1] in productions.rules
                 and owner in productions.corners(rhs[-1], side)):
             kinds[rhs[:-1], rhs[-1]] = None
     found = {}
@@ -850,7 +258,6 @@ def _dangling_roles(productions, owner, mirrored):
     found = {index: [(role, kind) for role, kind in candidates if kind in closing]
              for index, candidates in found.items()}
     return alternatives, {index: candidates for index, candidates in found.items() if candidates}
-
 
 def _dangling_group(productions, owner, mirrored):
     """The dangling suffixes of `owner` as {index of an alternative: (role,
@@ -895,14 +302,14 @@ def _dangling_group(productions, owner, mirrored):
     for index, (role, (mu, _)) in roles.items():
         rest = alternatives[index][len(mu) + 1:]
         if (productions.derives_epsilon(mu) or begins_with_owner(mu) or role == "option" and owner in rest
-                or role == "closed" and rest[0] is owner and owner in productions.nullable):
+                or role == "closed" and rest[0] == owner and owner in productions.nullable):
             return None
     for symbol in productions.rules:
         if not ends_in_owner(symbol):
             continue
-        for index, (rhs, _, _) in enumerate(productions.rules[symbol]):
+        for index, (_, rhs) in enumerate(productions.rules[symbol]):
             if (not productions.derives_sentence(rhs)
-                    or symbol is owner and roles.get(index, (None,))[0] == "option"):    # split first
+                    or symbol == owner and roles.get(index, (None,))[0] == "option"):    # split first
                 continue
             rhs = rhs[::-1] if mirrored else rhs
             for i in reversed(range(len(rhs) - 1)):
@@ -916,359 +323,478 @@ def _dangling_group(productions, owner, mirrored):
     # A ::= b C | b C g | A c | x, C ::= p A | y, b p b y c g needs the open
     # b C inside A c.
     if any(index not in roles and productions.derives_sentence(rhs) and begins_with_owner(rhs)
-           and (rhs[0] is not owner or any(corner is not owner for _, (_, corner) in roles.values()))
+           and (rhs[0] != owner or any(corner != owner for _, (_, corner) in roles.values()))
            for index, rhs in enumerate(alternatives)):
         return None
     return roles
 
+_NSF = "NSF report, Section 6, "
 
-def _dangling_suffixes(productions):
-    """A ::= μ X | μ X γ | δ: an open alternative and a closed one with the
-    same prefix μ and nonterminal X, where X is A or ends in A (X ⇒* ξ A), and
-    γ is not nullable. With m from μ, a from A and g from γ, the sentence
-    m m a g is then in both, as m (m a g) and as m (m a) g: g can close
-    either μ, as the else of nested if statements can. The mirror image,
-    A ::= X μ | γ X μ | δ, counts too, and so does μ A ν with a nullable ν
-    that derives a nonempty sentence, the option of μ A | μ A ν written as
-    one rule: m (m a g) ε and m (m a) g are two cuts before ν.
 
-    Recognition is independent of the nearest-binding rewrite's safety
-    restrictions. Prefixes must be equal: commuting ones, as in
-    A ::= b A | b b A m | d, are ambiguous too, but not matched."""
-    matches = []
-    for owner in productions.rules:
-        if not isinstance(owner, Nonterminal) or owner not in productions.productive:
+def _match(facts, rule_id, owner, indices, kind, reason, source, spans=(), details=(), available=True):
+    return CACCMatch(rule_id, kind, owner, tuple(indices), tuple(spans), source, reason, available,
+                     "" if available else "The nearest-binding rewrite does not support this recursive or nullable context.",
+                     facts.productions, tuple(details))
+
+
+def _component(facts, symbol):
+    return tuple(sorted((other for other in facts.corners(symbol, "transparent")
+                         if symbol in facts.corners(other, "transparent")), key=facts.order.get))
+
+
+def _step_positions(facts, rhs, members):
+    return [i for i, symbol in enumerate(rhs)
+            if symbol in members and facts.derives_epsilon(rhs[:i] + rhs[i + 1:])]
+
+
+def _cycle_parts(facts, component):
+    contexts = {"left": {}, "right": {}}
+    exits = {}
+    nested = False
+    for member in component:
+        for _, rhs in facts.rules[member]:
+            positions = _step_positions(facts, rhs, component)
+            for i in positions:
+                for side, symbols in (("left", rhs[:i]), ("right", rhs[i + 1:])):
+                    for symbol in symbols:
+                        nested |= symbol in component
+                        if symbol not in component and symbol in facts.nonempty:
+                            contexts[side][symbol] = None
+            if not positions:
+                exits[rhs] = None
+    return contexts, exits, nested
+
+
+def _transparent_cycles(facts):
+    """Find productive transparent SCCs; order dependencies before their copies."""
+    found, seen = [], set()
+    for symbol in facts.rules:
+        if symbol in seen:
             continue
-        rules = productions.rules[owner]
-        for mirrored in (False, True):
-            _, candidates = _dangling_roles(productions, owner, mirrored)
-            roles = [(index, role, kind) for index, values in candidates.items() for role, kind in values]
-            orient = (lambda items: items[::-1]) if mirrored else (lambda items: items)
-            for index, role, (mu, corner) in roles:
-                if role == "open":
+        component = _component(facts, symbol)
+        seen.update(component)
+        if len(component) == 1 and symbol not in facts.steps(symbol, "transparent"):
+            continue
+        for owner in component:
+            steps, exits = [], []
+            for index, rhs in facts.useful(owner):
+                (steps if _step_positions(facts, rhs, component) else exits).append(index)
+            if steps and exits:
+                found.append((component, _match(facts, "transparent_cycle", owner, (exits[0], steps[0]), "union",
+                    "A productive cycle with nullable contexts derives each exit in two ways.",
+                    "transparent derivation cycles", details=component)))
+                break
+    cycle_of = {member: index for index, (component, _) in enumerate(found) for member in component}
+    ordered, visited = [], set()
+
+    def visit(index):
+        if index in visited:
+            return
+        visited.add(index)
+        contexts, exits, nested = _cycle_parts(facts, found[index][0])
+        copied = [*contexts["left"], *contexts["right"]]
+        if nested:
+            copied.extend(symbol for rhs in exits if facts.derives_epsilon(rhs) for symbol in rhs)
+        for symbol in copied:
+            for reached in facts.corners(symbol, "left"):
+                if cycle_of.get(reached, index) != index:
+                    visit(cycle_of[reached])
+        ordered.append(found[index][1])
+
+    for index in range(len(found)):
+        visit(index)
+    return ordered
+
+
+def _subsumed(facts):
+    matches = []
+    for owner, rules in facts.rules.items():
+        for target_index, target in facts.useful(owner):
+            derivations = None
+            for source_index, source in rules:
+                if source == target:
                     continue
-                factors = orient(_factors(rules[index][1]))
-                details = (_join(orient(factors[:len(mu)]), ConcatenationFormula), corner,
-                           _join(orient(factors[len(mu) + 1:]), ConcatenationFormula), mirrored)
-                if role == "option":
-                    sites, kind = [(rules[index][2],)], "concatenation"
-                else:
-                    sites = [(rules[other][2], rules[index][2]) for other, other_role, other_kind
-                             in roles if other_role == "open" and other_kind == (mu, corner)]
-                    kind = "union"
-                for alternatives in sites:
-                    matches.append(_Match(
-                        "dangling_suffix", kind, owner, (), owner.definition, None,
-                        "the dangling else, extended to corner chains",
-                        "A closing suffix after a repeated prefix can close either occurrence of the prefix.",
-                        details, alternatives))
+                derivations = derivations or _Derivations(facts, target_index)
+                if derivations.derives(source, target):
+                    matches.append(_match(facts, "subsumed_alternative", owner, (source_index, target_index), "union",
+                        "One alternative derives another without using the alternative to be removed.",
+                        _NSF + "union idempotency, extended to derivations"))
     return matches
 
 
-def _clone_formula(formula, terminals, nonterminals):
-    if isinstance(formula, Terminal):
-        return terminals[formula.symbol]
-    if isinstance(formula, Nonterminal):
-        return nonterminals[formula]
-    if isinstance(formula, Epsilon):
-        return Epsilon()
-    return type(formula)(_clone_formula(formula.left, terminals, nonterminals),
-                         _clone_formula(formula.right, terminals, nonterminals))
+def _dangling(facts):
+    matches = []
+    for owner in facts.rules:
+        if owner not in facts.productive:
+            continue
+        for mirrored in (False, True):
+            _, candidates = _dangling_roles(facts, owner, mirrored)
+            roles = [(index, role, kind) for index, values in candidates.items() for role, kind in values]
+            if not roles:
+                continue
+            available = bool(_dangling_group(facts, owner, mirrored))
+            for index, role, kind in roles:
+                if role == "open":
+                    continue
+                own = facts.rules[owner][index][0]
+                occurrences = [(own,)] if role == "option" else [
+                    (facts.rules[owner][other][0], own) for other, other_role, other_kind in roles
+                    if other_role == "open" and other_kind == kind]
+                for indices in occurrences:
+                    matches.append(_match(facts, "dangling_suffix", owner, indices,
+                        "concatenation" if role == "option" else "union",
+                        "A closing suffix after a repeated prefix can close either occurrence of the prefix.",
+                        "the dangling else, extended to corner chains", details=(mirrored,), available=available))
+    return matches
 
 
-def _clone_grammar(grammar):
-    """A copy at level 0 and without cfg, with the maps {symbol: new Terminal}
-    and {nonterminal: its copy} that _clone_formula needs."""
-    terminals = {terminal.symbol: Terminal(terminal.symbol) for terminal in grammar.terminals}
-    nonterminals = {nt: Nonterminal(nt.name) for nt in grammar.nonterminals}
-    for old, new in nonterminals.items():
-        new.definition = _clone_formula(old.definition, terminals, nonterminals)
-    return _Graph(tuple(terminals.values()), tuple(nonterminals.values())), terminals, nonterminals
+def _recognize(facts):
+    mixed, embedded, local = [], [], []
+    for owner, rules in facts.rules.items():
+        if owner not in facts.productive:
+            continue
+        for first, prefix in rules:
+            if prefix and prefix[-1] == owner and facts.derives_sentence(prefix[:-1]):
+                for second, suffix in rules:
+                    if (first != second and suffix and suffix[0] == owner
+                            and facts.derives_sentence(suffix[1:]) and len(rules) > 2):
+                        mixed.append(_match(facts, "mixed_recursion", owner, (first, second), "union",
+                            "Distinct productive prefix and suffix recursive alternatives overlap.",
+                            _NSF + "Corollary 1"))
+            if len(prefix) >= 2 and prefix[0] == prefix[-1] == owner and facts.derives_sentence(prefix[1:-1]):
+                embedded.append(_match(facts, "self_embedding", owner, (first,),
+                    "concatenation" if owner in facts.nonempty or facts.derives_nonempty(prefix[1:-1]) else "derivation",
+                    "A productive A beta A alternative permits distinct recursive associations.",
+                    _NSF + "Corollary 2"))
+        duplicates, optional = {}, []
+        for index, rhs in facts.useful(owner):
+            duplicates.setdefault(rhs, []).append(index)
+            for offset, (left, right) in enumerate(zip(rhs, rhs[1:])):
+                if left == right and left in facts.nullable and left in facts.nonempty:
+                    optional.append(_match(facts, "optional_square", owner, (index,), "concatenation",
+                        "Either occurrence of the nullable nonterminal can supply the same nonempty block.",
+                        _NSF + "optional-expression square", spans=((index, offset, offset + 2),)))
+        for indices in duplicates.values():
+            if len(indices) > 1:
+                local.append(_match(facts, "duplicate_union", owner, indices, "union",
+                    "The same productive alternative occurs more than once.", _NSF + "union idempotency"))
+        local.extend(optional)
+    return _transparent_cycles(facts) + _subsumed(facts) + _dangling(facts) + mixed + embedded + local
 
 
-def _fresh_name(grammar, base, introduced=()):
-    """`base`, or `base` with a number, unused by `grammar` and by the
-    nonterminals `introduced` so far."""
-    used = ({nt.name for nt in grammar.nonterminals} | {terminal.symbol for terminal in grammar.terminals}
-            | {nt.name for nt in introduced})
-    if base.startswith("<") and ">" in base:
-        base = base.replace(">", "", 1) + ">"
-    name = base
-    index = 1
-    while name in used:
-        name = f"{base[:-1]}_{index}>" if base.startswith("<") else f"{base}_{index}"
-        index += 1
-    return name
+class _Edit:
+    """Construct productions while retaining the source of each unchanged occurrence."""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.rules = {name: [] for name in cfg.nonterminals}
+        self.indices = {name: [] for name in cfg.nonterminals}
+        for index, ((lhs, rhs), line) in enumerate(zip(cfg.productions, cfg.production_lines)):
+            self.rules[lhs].append((rhs, line))
+            self.indices[lhs].append(index)
+        self.used = set(cfg.nonterminals) | set(cfg.terminals)
+        self.introduced = []
+        self.changed = set()
+
+    def fresh(self, base):
+        if base.startswith("<") and ">" in base:
+            base = base.replace(">", "", 1) + ">"
+        name, number = base, 1
+        while name in self.used:
+            name = f"{base[:-1]}_{number}>" if base.startswith("<") else f"{base}_{number}"
+            number += 1
+        self.used.add(name)
+        self.introduced.append(name)
+        self.rules[name] = None      # A queued nonempty/closed helper is defined later.
+        return name
+
+    def set(self, name, alternatives):
+        alternatives = list(alternatives)
+        if not alternatives:
+            raise ValueError(f"A rewrite would leave {name} without any productions")
+        sources = defaultdict(deque)
+        for rhs, line in self.rules.get(name) or ():
+            sources[rhs].append(line)
+        self.rules[name] = [(rhs, sources[rhs].popleft() if sources[rhs] else 0) for rhs in alternatives]
+        self.changed.add(name)
+
+    def replace_rule(self, index, alternatives):
+        owner, original = self.cfg.productions[index]
+        position = self.indices[owner].index(index)
+        line = self.cfg.production_lines[index]
+        self.rules[owner][position:position + 1] = [(rhs, line if rhs == original else 0) for rhs in alternatives]
+        self.changed.add(owner)
+
+    def remove(self, indices):
+        excluded = set(indices)
+        owner = self.cfg.productions[indices[0]][0]
+        self.rules[owner] = [entry for index, entry in zip(self.indices[owner], self.rules[owner]) if index not in excluded]
+        self.changed.add(owner)
+
+    def facts(self):
+        return _Facts((name, rhs) for name, entries in self.rules.items() if entries is not None for rhs, _ in entries)
+
+    def finish(self):
+        productions, lines, emitted = [], [], set()
+        for (lhs, rhs), line in zip(self.cfg.productions, self.cfg.production_lines):
+            if lhs not in self.changed:
+                productions.append((lhs, rhs))
+                lines.append(line)
+            elif lhs not in emitted:
+                emitted.add(lhs)
+                for body, source in self.rules[lhs]:
+                    productions.append((lhs, body))
+                    lines.append(source)
+        for lhs in self.introduced:
+            for rhs, line in self.rules[lhs]:
+                productions.append((lhs, rhs))
+                lines.append(line)
+        return CFG(productions, lines)
 
 
-def _replace_formula(formula, path, replacement):
-    if not path:
-        return replacement
-    step, *rest = path
-    if step == "left":
-        formula.left = _replace_formula(formula.left, rest, replacement)
-    else:
-        formula.right = _replace_formula(formula.right, rest, replacement)
-    return formula
+class _Nonempty:
+    """Queued helper rules for L(X) minus epsilon, including recursive X.
 
+    New helper names count as nonnullable symbols while their definitions
+    are being built. Each view describes a complete earlier grammar version.
+    """
 
-def _nonempty_forms(productions, rhs, factors, nonempty):
-    """The ways the factors of `rhs` derive a nonempty sentence, by
-    ε-elimination: for each i where rhs[:i] is nullable and rhs[i] derives a
-    nonempty sentence, `nonempty`(factor i) followed by the factors after it."""
-    forms = []
-    for i, symbol in enumerate(rhs):
-        if productions.is_terminal(symbol) or symbol in productions.nonempty:
-            forms.append([nonempty(factors[i])] + list(factors[i + 1:]))
-        if symbol not in productions.nullable:
-            break
-    return forms
-
-
-class _NonemptyVersions:
-    """New nonterminals for the nonempty sentences of nullable symbols.
-
-    Called on a factor, it returns the factor itself when its symbol is not
-    nullable, and otherwise a new nonterminal X' for X, which define() gives
-    the forms of _nonempty_forms for each useful alternative of X. These
-    are read from the first of `views` that has X; there the new
-    nonterminals count as terminals, which is what they are: not nullable,
-    and nonempty."""
-
-    def __init__(self, grammar, views, introduced):
-        self.grammar, self.views, self.introduced = grammar, views, introduced
+    def __init__(self, edit, views):
+        self.edit, self.views = edit, views
         self.versions = {}
-        self.pending = []
+        self.pending = deque()
 
-    def _view(self, symbol):
-        return next((view for view in self.views if symbol in view.rules), self.views[-1])
+    def symbol(self, name):
+        facts = next((view for view in self.views if name in view.rules), self.views[-1])
+        if name not in facts.nullable:
+            return name
+        if name not in self.versions:
+            self.versions[name] = self.edit.fresh(name + "_nonempty")
+            self.pending.append(name)
+        return self.versions[name]
 
-    def __call__(self, factor):
-        symbol = _symbol(factor)
-        view = self._view(symbol)
-        if symbol not in view.nullable:
-            return factor
-        if symbol not in self.versions:
-            base = symbol.name if isinstance(symbol, Nonterminal) else f"{view.owner[symbol].name}_part"
-            name = _fresh_name(self.grammar, f"{base}_nonempty", self.introduced)
-            self.versions[symbol] = Nonterminal(name)
-            self.introduced.append(self.versions[symbol])
-            self.pending.append(symbol)
-        return self.versions[symbol]
+    def forms(self, rhs, facts):
+        """Choose the first nonempty symbol after a nullable prefix."""
+        result = []
+        for index, symbol in enumerate(rhs):
+            if facts.is_terminal(symbol) or symbol in facts.nonempty:
+                result.append((self.symbol(symbol),) + rhs[index + 1:])
+            if symbol not in facts.nullable:
+                break
+        return result
 
     def define(self):
         while self.pending:
-            symbol = self.pending.pop(0)
-            view = self._view(symbol)
-            forms = {}
-            for rhs, alternative, _ in view.useful(symbol):
-                for form in _nonempty_forms(view, rhs, _factors(alternative), self):
-                    formula = _join(form, ConcatenationFormula)
-                    forms.setdefault(_formula_key(formula), formula)
-            self.versions[symbol].definition = _join(forms.values(), UnionFormula)
+            name = self.pending.popleft()
+            facts = next(view for view in self.views if name in view.rules)
+            forms = dict.fromkeys(form for _, rhs in facts.useful(name) for form in self.forms(rhs, facts))
+            self.edit.set(self.versions[name], forms)
 
 
-def _rebuild_cycle(grammar, owner, introduced):
-    """Rewrite the strongly connected component of transparent steps that
-    holds `owner` (in `grammar`) as a whole; return its nonterminals.
+def _rewrite_cycle(edit, facts, component):
+    """Collapse a transparent SCC into its shared language, retaining aliases.
 
-    Its first nonterminal H takes the language they all share, and the
-    others become H. With E the alternatives that are not steps, S and T the
-    symbols of the steps' left and right contexts that derive a nonempty
-    sentence, and X' for the nonempty sentences of X:
-
-        H ::= s' H | H_tail (s in S),   H_tail ::= H_tail t' | δ (t in T, δ in E)
-
-    which is H ::= s' H | δ without T, H ::= H t' | δ without S, and H ::= δ
-    without either. When a context holds a member, the language L is
-    nullable and holds L L, so it is the star of its generators g: each
-    context symbol outside the component, each alternative in E that is not
-    nullable, and each symbol of one that is; then H ::= H g' | ε. The X'
-    are made from the rewritten definitions, so that they cannot form a
-    cycle again."""
-    productions = _Productions(grammar.nonterminals)
-    component = _component(productions, owner)
-    named = [member for member in component if isinstance(member, Nonterminal)]
-    head = named[0]
-    contexts, exits, nested = _cycle_parts(productions, component)
-    nonempty = _NonemptyVersions(grammar, [productions], introduced)
+    Without nested members, nullable left/right contexts become nonempty
+    prefix/suffix generators around the exits. With nested members the common
+    language is the star of its generators. Nonempty copies use the rewritten
+    definitions so they cannot recreate the removed transparent cycle.
+    """
+    head = component[0]
+    contexts, exits, nested = _cycle_parts(facts, component)
+    nonempty = _Nonempty(edit, [facts])
     if nested:
-        generators = {**contexts["left"], **contexts["right"]}
-        for rhs, alternative in exits.values():
-            if not productions.derives_epsilon(rhs):
-                generators[_formula_key(alternative)] = alternative
-                continue
-            for symbol, factor in zip(rhs, _factors(alternative)):
-                if symbol in productions.nonempty:
-                    generators.setdefault(symbol, factor)
-        head.definition = _join([ConcatenationFormula(head, nonempty(generator))
-                                 for generator in generators.values()] + [Epsilon()], UnionFormula)
+        generators = dict.fromkeys((nonempty.symbol(s),) for s in (*contexts["left"], *contexts["right"]))
+        for rhs in exits:
+            if not facts.derives_epsilon(rhs):
+                generators[rhs] = None
+            else:
+                for symbol in rhs:
+                    if symbol in facts.nonempty:
+                        generators[(nonempty.symbol(symbol),)] = None
+        edit.set(head, [(head,) + rhs for rhs in generators] + [()])
     else:
-        core = head
-        if contexts["left"] and contexts["right"]:
-            core = Nonterminal(_fresh_name(grammar, f"{head.name}_tail", introduced))
-            introduced.append(core)
-        lefts = [ConcatenationFormula(nonempty(factor), head) for factor in contexts["left"].values()]
-        rights = [ConcatenationFormula(core, nonempty(factor)) for factor in contexts["right"].values()]
-        alternatives = [alternative for _, alternative in exits.values()]
-        if core is head:
-            head.definition = _join(lefts + rights + alternatives, UnionFormula)
+        core = edit.fresh(head + "_tail") if contexts["left"] and contexts["right"] else head
+        lefts = [(nonempty.symbol(symbol), head) for symbol in contexts["left"]]
+        rights = [(core, nonempty.symbol(symbol)) for symbol in contexts["right"]]
+        if core == head:
+            edit.set(head, lefts + rights + list(exits))
         else:
-            head.definition = _join(lefts + [core], UnionFormula)
-            core.definition = _join(rights + alternatives, UnionFormula)
-    for member in named[1:]:
-        member.definition = head
-    rewritten = [*grammar.nonterminals, *(nt for nt in introduced if nt.definition is not None)]
-    nonempty.views = [_Productions(rewritten), productions]
+            edit.set(head, lefts + [(core,)])
+            edit.set(core, rights + list(exits))
+    for member in component[1:]:
+        edit.set(member, [(head,)])
+    nonempty.views = [edit.facts(), facts]
     nonempty.define()
-    return named
 
 
-def _nearest_binding(grammar, owner, mirrored, introduced):
-    """Rewrite the dangling suffixes of `owner` (in `grammar`), all its
-    prefixes μ at once, so that each γ closes the nearest μ:
+def _rewrite_dangling(edit, facts, owner, mirrored):
+    """Close each suffix at the nearest matching prefix, within the guarded shapes.
 
-        A ::= μ X | μ X γ | δ    becomes    A ::= μ X | μ X' γ | δ
-                                            M ::= μ X' γ' | δ'
-
-    M, new, is A without the open alternatives μ X, so it never leaves a μ
-    open at its right end, and the γ after it closes the μ before it. X' is
-    M when X is A, and otherwise a copy of X; γ' and δ' are γ and δ with
-    the symbols at their right end that end in A replaced by such copies,
-    each copy holding the alternatives of the original redirected the same
-    way, until A becomes M. δ' also has an A at its left end replaced by M:
-    a left-recursive alternative A c, whose mixed recursion is rewritten
-    after this, must not open a μ either (_dangling_group allows one only
-    when every X is A). An option μ A ν is first split into μ A and one
-    μ A ν' for each nonempty form ν' of ν. With several prefixes, each has
-    its own M, which keeps the open alternatives of the others. When
-    `mirrored`, all of this is read from the left end."""
-    productions = _Productions(grammar.nonterminals)
-    roles = _dangling_group(productions, owner, mirrored)
+    Closed copies redirect the relevant end through corner chains. Nullable
+    suffixes are split first, and their nonempty helpers must be visible to
+    corner analysis before the closed copies are defined.
+    """
+    roles = _dangling_group(facts, owner, mirrored)
     side = "left" if mirrored else "right"
-    orient = (lambda items: items[::-1]) if mirrored else list
-    nonempty = _NonemptyVersions(grammar, [productions], introduced)
+    orient = (lambda rhs: rhs[::-1]) if mirrored else (lambda rhs: rhs)
+    nonempty = _Nonempty(edit, [facts])
     kinds = list(dict.fromkeys(kind for _, kind in roles.values()))
-    copies = {kind: {} for kind in kinds}      # kind -> {nonterminal: its copy}
-    pending = []
+    copies = {kind: {} for kind in kinds}
+    pending = deque()
 
-    def copy(kind, nt):
-        if nt not in copies[kind]:
-            copies[kind][nt] = Nonterminal(_fresh_name(grammar, f"{nt.name}_closed", introduced))
-            introduced.append(copies[kind][nt])
-            if nt is not owner:
-                pending.append((kind, nt))
-        return copies[kind][nt]
+    def closed_copy(kind, name):
+        if name not in copies[kind]:
+            copies[kind][name] = edit.fresh(name + "_closed")
+            if name != owner:
+                pending.append((kind, name))
+        return copies[kind][name]
 
-    def build(factors):
-        return _join(orient(factors), ConcatenationFormula)
-
-    def redirect(kind, factors):
-        """`factors`, in reading order, with the symbols at their end that end in A replaced."""
-        factors = list(factors)
-        for i in reversed(range(len(factors))):
-            symbol = _symbol(factors[i])
-            if not productions.is_terminal(symbol) and owner in productions.corners(symbol, side):
-                if isinstance(symbol, Nonterminal):
-                    factors[i] = copy(kind, symbol)
-                else:
-                    factors[i] = _join([build(redirect(kind, orient(_factors(alternative))))
-                                        for _, alternative, _ in productions.rules[symbol]], UnionFormula)
-            if symbol not in productions.nullable:
+    def redirect(kind, rhs):
+        rhs = list(rhs)
+        for index in reversed(range(len(rhs))):
+            symbol = rhs[index]
+            if symbol in facts.rules and owner in facts.corners(symbol, side):
+                rhs[index] = closed_copy(kind, symbol)
+            if symbol not in facts.nullable:
                 break
-        return factors
+        return tuple(rhs)
 
-    def closed(kind, factors, closing=None):
-        """μ X' γ, with γ redirected for `closing` when given."""
+    def closed(kind, rhs, closing=None):
         mu, corner = kind
-        gamma = factors[len(mu) + 1:]
-        return build(factors[:len(mu)] + [copy(kind, corner)]
-                     + (redirect(closing, gamma) if closing else gamma))
+        suffix = rhs[len(mu) + 1:]
+        return orient(rhs[:len(mu)] + (closed_copy(kind, corner),)
+                      + (redirect(closing, suffix) if closing else suffix))
 
     for kind in kinds:
-        copy(kind, owner)
-    entries = []        # (role, kind, factors in reading order, the alternative if kept as it is)
+        closed_copy(kind, owner)
+    entries = []
     opened = {kind for role, kind in roles.values() if role == "open"}
-    for index, (rhs, alternative, _) in enumerate(productions.rules[owner]):
+    for index, (_, original) in enumerate(facts.rules[owner]):
         role, kind = roles.get(index, (None, None))
+        rhs = orient(original)
         if role != "option":
-            entries.append((role, kind, orient(_factors(alternative)), alternative))
+            entries.append((role, kind, rhs))
             continue
         split = len(kind[0]) + 1
-        factors, symbols = orient(_factors(alternative)), orient(rhs)
         if kind not in opened:
             opened.add(kind)
-            entries.append(("open", kind, factors[:split], None))
-        for form in _nonempty_forms(productions, symbols[split:], factors[split:], nonempty):
-            entries.append(("closed", kind, factors[:split] + form, None))
-    # The X' in the forms ν' can end in A too (E' ::= g A for E ::= g A | ε), so
-    # redirect() must see their productions: define them, and read them with
-    # those of the grammar before A is rewritten.
+            entries.append(("open", kind, rhs[:split]))
+        for form in nonempty.forms(rhs[split:], facts):
+            entries.append(("closed", kind, rhs[:split] + form))
     nonempty.define()
-    productions = _Productions([*grammar.nonterminals, *nonempty.versions.values()])
-    owner.definition = _join([closed(kind, factors) if role == "closed" else alternative or build(factors)
-                              for role, kind, factors, alternative in entries], UnionFormula)
+    facts = edit.facts()
+    edit.set(owner, [closed(kind, rhs) if role == "closed" else orient(rhs) for role, kind, rhs in entries])
     for current in kinds:
         alternatives = []
-        for role, kind, factors, _ in entries:
+        for role, kind, rhs in entries:
             if role == "closed":
-                alternatives.append(closed(kind, factors, current))
+                alternatives.append(closed(kind, rhs, current))
             elif not (role == "open" and kind == current):
-                if role is None and factors and factors[0] is owner:
-                    factors = [copy(current, owner)] + factors[1:]
-                alternatives.append(build(redirect(current, factors)))
-        copies[current][owner].definition = _join(alternatives, UnionFormula)
+                if role is None and rhs and rhs[0] == owner:
+                    rhs = (closed_copy(current, owner),) + rhs[1:]
+                alternatives.append(orient(redirect(current, rhs)))
+        edit.set(copies[current][owner], alternatives)
     while pending:
-        kind, nt = pending.pop(0)
-        copies[kind][nt].definition = _join([build(redirect(kind, orient(_factors(alternative))))
-                                             for _, alternative, _ in productions.rules[nt]], UnionFormula)
+        kind, name = pending.popleft()
+        edit.set(copies[kind][name], [orient(redirect(kind, orient(rhs))) for _, rhs in facts.rules[name]])
 
 
-def _apply_cacc(grammar, match):
-    """Rewrite `match` in a copy of `grammar`; return (copy, CACCRewrite).
-
-    A transparent cycle rebuilds the definitions of its component, and a
-    dangling suffix that of its owner, both from the copy itself; the other
-    rewrites are built from the match. New nonterminals follow the first
-    definition changed."""
-    result, terminals, nonterminals = _clone_grammar(grammar)
-    owner = nonterminals[match.nonterminal]
-    changed, introduced = [owner], []
-    if match.rule_id == "mixed_recursion":
-        beta, gamma, delta = [_clone_formula(item, terminals, nonterminals) for item in match.details]
-        helper_base = "T" if owner.name == "E" else f"{owner.name}_tail"
-        helper = Nonterminal(_fresh_name(result, helper_base))
-        owner.definition = UnionFormula(_join((beta, owner), ConcatenationFormula), helper)
-        helper.definition = UnionFormula(_join((helper, gamma), ConcatenationFormula), delta)
-        introduced.append(helper)
+def _rewrite(cfg, facts, match):
+    edit = _Edit(cfg)
+    owner = match.nonterminal
+    indices = match.production_indices
+    if match.rule_id == "duplicate_union":
+        edit.remove(indices[1:])
+    elif match.rule_id == "subsumed_alternative":
+        edit.remove((indices[1],))
+    elif match.rule_id == "mixed_recursion":
+        prefix, suffix = (cfg.productions[index][1] for index in indices)
+        helper = edit.fresh("T" if owner == "E" else owner + "_tail")
+        edit.set(owner, [prefix, (helper,)])
+        edit.set(helper, [(helper,) + suffix[1:]] + [rhs for index, rhs in facts.rules[owner] if index not in indices])
+    elif match.rule_id == "self_embedding":
+        recursive = cfg.productions[indices[0]][1]
+        rest = [rhs for index, rhs in facts.rules[owner] if index != indices[0]]
+        # A choice inside A beta gamma gets its own BNF nonterminal instead
+        # of distributing a Cartesian product of alternatives.
+        if len(rest) == 1:
+            gamma = rest[0]
+        else:
+            helper = edit.fresh(owner + "_part")
+            edit.set(helper, rest)
+            gamma = (helper,)
+        edit.set(owner, [(owner,) + recursive[1:-1] + gamma] + rest)
+    elif match.rule_id == "optional_square":
+        index, start, end = match.rhs_spans[0]
+        rhs = cfg.productions[index][1]
+        nonempty = _Nonempty(edit, [facts])
+        part = nonempty.symbol(rhs[start])
+        alternatives = [(part, part), (part,), ()]
+        if start == 0 and end == len(rhs):
+            edit.replace_rule(index, alternatives)
+        else:
+            # Factor the choice so independent optional pairs do not multiply
+            # all surrounding alternatives during repeated rewrites.
+            helper = edit.fresh(owner + "_optional")
+            edit.set(helper, alternatives)
+            edit.replace_rule(index, [rhs[:start] + (helper,) + rhs[end:]])
+        nonempty.define()
     elif match.rule_id == "transparent_cycle":
-        changed = _rebuild_cycle(result, owner, introduced)
+        _rewrite_cycle(edit, facts, match._details)
     elif match.rule_id == "dangling_suffix":
-        if _dangling_group(_Productions(result.nonterminals), owner, match.details[-1]):
-            _nearest_binding(result, owner, match.details[-1], introduced)
-    elif match.rule_id == "optional_square" and match.details is not None:
-        _split_square(result, owner, *match.details, introduced)
-    else:
-        replacement = _clone_formula(match.replacement, terminals, nonterminals)
-        owner.definition = _replace_formula(owner.definition, match.path, replacement)
-    position = result.nonterminals.index(changed[0]) + 1
-    result.nonterminals = result.nonterminals[:position] + tuple(introduced) + result.nonterminals[position:]
-    originals = {new: old for old, new in nonterminals.items()}
-    before = "\n".join(_definition_text(originals[nt]) for nt in changed)
-    after = "\n".join(_definition_text(nt) for nt in changed + introduced)
-    return result, CACCRewrite(match.rule_id, match.nonterminal.name, before, after,
-                               tuple(nt.name for nt in introduced))
+        _rewrite_dangling(edit, facts, owner, match._details[0])
+    result = edit.finish()
+    changed = [name for name in cfg.nonterminals if name in edit.changed]
+    def definitions(grammar, names):
+        return "\n".join(lhs + " ::= " + (" ".join(rhs) or "ε")
+                         for lhs, rhs in grammar.productions if lhs in names)
+    change = CACCRewrite(match.rule_id, owner, definitions(cfg, changed),
+                         definitions(result, changed + edit.introduced), tuple(edit.introduced))
+    return result, change
 
 
-def _split_square(grammar, owner, path, start, introduced):
-    """Rewrite the alternative μ N N ν at `path` in the definition of `owner`,
-    where N derives ε and N N begins at factor `start`, as
-    μ N' N' ν | μ N' ν | μ ν, with N' for the nonempty sentences of N."""
-    factors = _factors(_formula_at(owner.definition, path))
-    nonempty = _NonemptyVersions(grammar, [_Productions(grammar.nonterminals)], introduced)
-    part = nonempty(factors[start])
-    mu, nu = factors[:start], factors[start + 2:]
-    forms = (mu + [part, part] + nu, mu + [part] + nu, mu + nu)
-    owner.definition = _replace_formula(owner.definition, path, _join(
-        [_join(form, ConcatenationFormula) for form in forms], UnionFormula))
-    nonempty.define()
+def recognize_caccs(cfg):
+    """Find structural ambiguity patterns, independent of the finite search level."""
+    return _recognize(_Facts(cfg.productions))
+
+
+def apply_cacc(cfg, match):
+    """Apply one match to a copy; unsupported rewrites return unchanged and stalled."""
+    if not isinstance(match, CACCMatch) or match._productions != cfg.productions:
+        raise ValueError("The CACC match belongs to a different or edited grammar")
+    facts = _Facts(cfg.productions)
+    selected = next((item for item in _recognize(facts) if item == match), None)
+    if selected is None:
+        raise ValueError("The CACC match is no longer present in this grammar")
+    if not selected.rewrite_available:
+        result = CFG(cfg.productions, cfg.production_lines)
+        return CACCResult(result, [], _recognize(facts), stalled=True)
+    result, change = _rewrite(cfg, facts, selected)
+    stalled = result.productions == cfg.productions
+    return CACCResult(result, [] if stalled else [change], recognize_caccs(result), stalled=stalled)
+
+
+def transform_caccs(cfg, max_steps=100):
+    """Apply supported rewrites until none remain, progress stalls, or the limit is reached."""
+    if type(max_steps) is not int or max_steps < 0:
+        raise ValueError("max_steps must be a nonnegative integer")
+    result = CFG(cfg.productions, cfg.production_lines)
+    seen, changes, stalled = {result.productions}, [], False
+    facts = _Facts(result.productions)
+    matches = _recognize(facts)
+    while matches and len(changes) < max_steps:
+        for match in matches:
+            if not match.rewrite_available:
+                continue
+            candidate, change = _rewrite(result, facts, match)
+            if candidate.productions not in seen:
+                break
+        else:
+            stalled = True
+            break
+        result = candidate
+        seen.add(result.productions)
+        changes.append(change)
+        facts = _Facts(result.productions)
+        matches = _recognize(facts)
+    return CACCResult(result, changes, matches, bool(matches) and len(changes) == max_steps, stalled)

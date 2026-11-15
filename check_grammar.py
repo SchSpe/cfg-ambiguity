@@ -267,11 +267,10 @@ def render_text(report):
     else:
         lines.append("  Structural matches, checked independently of the search depth.")
         for match in report["caccs"]:
-            first_rule = next(index for index, (lhs, _) in enumerate(cfg.productions)
-                              if lhs == match.nonterminal)
-            location = f"definition starts at line {cfg.production_lines[first_rule]}"
+            source_lines = sorted({cfg.production_lines[index] for index in match.production_indices})
+            location = ("line " if len(source_lines) == 1 else "lines ") + ", ".join(map(str, source_lines))
             title = match.rule_id.replace("_", " ").capitalize()
-            lines += ["", f"  {title} in {match.nonterminal} ({location})"]
+            lines += ["", *_wrapped(f"{title} in {match.nonterminal} ({location})", "  ", "  ")]
             lines += _wrapped(match.reason, "    ", "    ")
             if match.nonterminal not in report["reachable"]:
                 lines += _wrapped(f"No sentence of {start} is derived through {match.nonterminal}, "
