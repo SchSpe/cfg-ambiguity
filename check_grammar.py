@@ -5,7 +5,7 @@ scripts, CI jobs and coding agents can use as well as people:
 
 The grammar is rule text as grammar_engine.parse_grammar reads it (one rule
 per line, E ::= E + E) or cfg-productions-v1 JSON (grammar_io.py); - reads
-standard input. Levels are computed by ui_server's worker process under a
+standard input. Levels are computed in a worker process under a
 time and a memory limit, and cached per grammar, so a later call with a
 higher --level carries on from the last level done. The report goes to
 standard output: plain text that gives the verdict and then each ambiguity
@@ -34,15 +34,15 @@ import textwrap
 import time
 
 from grammar_engine import ConcatenationFormula, parse_grammar
-import ui_server
-from ui_proofs import ProofLimitExceeded, build_grammar, finding_from_record, serialize_finding
-from ui_storage import read_findings, read_summary
+import analysis_runtime
+from grammar_proofs import ProofLimitExceeded, build_grammar, finding_from_record, serialize_finding
+from grammar_storage import read_findings, read_summary
 
 
 FORMAT = "ambiguity-report-v1"
-DEFAULT_LEVEL = 6          # the workspace page's; a later run with a higher --level resumes from the cache
+DEFAULT_LEVEL = 6           # a higher --level resumes from the cache
 DEFAULT_SECONDS = 90        # inside the 2-minute default timeout of an agent's shell command
-DEFAULT_MEMORY_MB = 2048    # the workspace page's default
+DEFAULT_MEMORY_MB = 2048
 DEFAULT_FINDINGS = 50
 NONE_FOUND, AMBIGUOUS, UNREADABLE, LIMITED, FAILED = range(5)      # exit statuses
 SCOPE = ("Each site is an ambiguity in one nonterminal's rules, shown by its witness: a sentence of "
@@ -205,14 +205,14 @@ def read_grammar(path):
     try:
         if text.lstrip().startswith("{"):
             original = json.loads(text)
-            data = ui_server.custom_grammar({**original, "name": "check_grammar"})
+            data = analysis_runtime.custom_grammar({**original, "name": "check_grammar"})
             source = original.get("source") if isinstance(original.get("source"), dict) else {}
             file = source.get("file")
             places = [f"{file}:{rule['source_line']}" if file and isinstance(rule.get("source_line"), int) else None
                       for rule in original["productions"]]
         else:
             cfg = parse_grammar(text).cfg
-            data = ui_server.custom_grammar({
+            data = analysis_runtime.custom_grammar({
                 "name": "check_grammar", "start": cfg.start, "terminals": list(cfg.terminals),
                 "nonterminals": list(cfg.nonterminals),
                 "productions": [{"lhs": lhs, "rhs": list(rhs)} for lhs, rhs in cfg.productions]})
@@ -327,15 +327,15 @@ def compute(data, level, directory, seconds, memory_mb, used, say):
     stopped before `level`, or None."""
     started = time.monotonic()
     start = data["start"]
-    levels = settled(ui_server.prepare_directory(directory, data, build_grammar(data).grammar)[:level + 1], used)
+    levels = settled(analysis_runtime.prepare_directory(directory, data, build_grammar(data).grammar)[:level + 1], used)
     if len(levels) > 1:
         say(f"levels 1-{len(levels) - 1} from the cache")
     if len(levels) > level or saturated(levels, used):
         return levels, None
 
     def record_saved():
-        while len(levels) <= level and ui_server.level_file(directory, len(levels)).exists():
-            levels.append(read_summary(ui_server.level_file(directory, len(levels))))
+        while len(levels) <= level and analysis_runtime.level_file(directory, len(levels)).exists():
+            levels.append(read_summary(analysis_runtime.level_file(directory, len(levels))))
             details = levels[-1]
             say(f"level {details['level']}: {details['counts'][start]} sentences of {start}, "
                 f"{details['findings_count']} ambiguous site(s), {time.monotonic() - started:.1f} s")
@@ -344,13 +344,13 @@ def compute(data, level, directory, seconds, memory_mb, used, say):
         if event.get("saved"):
             record_saved()
 
-    process, error_path = ui_server.start_worker(directory, len(levels), level)
+    process, error_path = analysis_runtime.start_worker(directory, len(levels), level)
     try:
-        reason = ui_server.follow_worker(
-            process, ui_server.memory_reader(), lambda: memory_mb * 1024 ** 2, deadline=started + seconds,
+        reason = analysis_runtime.follow_worker(
+            process, analysis_runtime.memory_reader(), lambda: memory_mb * 1024 ** 2, deadline=started + seconds,
             on_event=on_event, cancelled=lambda: saturated(levels, used))
     finally:
-        ui_server.end_worker(process, directory)
+        analysis_runtime.end_worker(process, directory)
     # Levels saved just before the worker exited may not have been read yet.
     record_saved()
     levels = settled(levels, used)
@@ -361,7 +361,7 @@ def compute(data, level, directory, seconds, memory_mb, used, say):
         return levels, {"reason": "memory", "level": failed, "limit_mb": memory_mb,
                         "message": f"Level {failed} stopped at the {memory_mb} MiB memory limit."}
     if reason in ("deadline", "level time"):
-        limit = seconds if reason == "deadline" else ui_server.LEVEL_SECONDS
+        limit = seconds if reason == "deadline" else analysis_runtime.LEVEL_SECONDS
         return levels, {"reason": "time", "level": failed, "limit_seconds": limit,
                         "message": f"Level {failed} stopped at the {limit:g}-second time limit."}
     if reason == "monitor":
@@ -419,7 +419,7 @@ def build_report(path, data, places, level, levels, stopped, directory, accepted
 
     sites = {}      # key -> {"first_level", and the record from the last level}
     for number in range(1, len(levels)):
-        for record in read_findings(ui_server.level_file(directory, number)):
+        for record in read_findings(analysis_runtime.level_file(directory, number)):
             rules = [position[rule_id] for rule_id in record["candidate_production_ids"]]
             key = json.dumps([record["kind"], record["owner"], [rule_keys[rule] for rule in rules],
                               record["expression"] if record["kind"] == "concatenation" else None])
@@ -773,8 +773,8 @@ def main(argv=None):
                         help="sites that don't count toward exit status 1: an earlier report (made with "
                              "--json --max-findings 0) or a JSON list of site ids")
     parser.add_argument("--timings", action="store_true", help="add each level's time and memory")
-    parser.add_argument("--cache", type=Path, default=ui_server.ROOT / ".ui_cache",
-                        help="where computed levels are kept (default: .ui_cache beside this file)")
+    parser.add_argument("--cache", type=Path, default=analysis_runtime.ROOT / ".ambiguity_cache",
+                        help="where computed levels are kept (default: .ambiguity_cache beside this file)")
     parser.add_argument("--quiet", action="store_true", help="print no progress on standard error")
     parser.add_argument("--schema", action="store_true", help="print the JSON Schema of the --json report and exit")
     args = parser.parse_args(argv)
@@ -796,8 +796,8 @@ def main(argv=None):
     lock = temporary = None
     try:
         args.cache.mkdir(parents=True, exist_ok=True)
-        ui_server.prune_stale(args.cache, "check")
-        directory = args.cache / ui_server.cache_key("check", data)
+        analysis_runtime.prune_stale(args.cache, "check")
+        directory = args.cache / analysis_runtime.cache_key("check", data)
         directory.mkdir(exist_ok=True)
         if claim(directory, args.max_seconds):
             lock = directory / "check.lock"

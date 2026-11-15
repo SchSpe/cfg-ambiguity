@@ -1,12 +1,12 @@
+"""Save and restore computed levels and ambiguity findings."""
+
 import json
 import os
 from pathlib import Path
 import sqlite3
 import tempfile
-from functools import lru_cache
 
 import grammar_engine as implementation
-
 
 
 def _json(value):
@@ -128,104 +128,10 @@ def load_languages(path, grammar):
         connection.close()
 
 
-def _page_arguments(offset, limit, maximum):
-    if isinstance(offset, str) and offset.isdecimal():
-        offset = int(offset)
-    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
-        raise ValueError("Offset must be a nonnegative integer")
-    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= maximum:
-        raise ValueError(f"Limit must be between 1 and {maximum}")
-    return offset, limit
-
-
-def page_sentences(path, nonterminal, offset=0, limit=24, prefix=None):
-    offset, limit = _page_arguments(offset, limit, 50)
-    prefix = [] if prefix is None else prefix
-    if not isinstance(prefix, (list, tuple)) or any(not isinstance(symbol, (str, int)) for symbol in prefix):
-        raise ValueError("Prefix must be a sequence of terminal tokens")
-    prefix = list(prefix)
-    connection = _open_snapshot(path)
-    try:
-        metadata = _metadata(connection)
-        root = connection.execute("SELECT node_id FROM roots WHERE name = ?", (_json(nonterminal),)).fetchone()
-        if root is None:
-            raise KeyError(nonterminal)
-
-        @lru_cache(maxsize=2048)
-        def read_node(node_id):
-            row = connection.execute("SELECT accepting, size, edges FROM nodes WHERE id = ?", (node_id,)).fetchone()
-            if row is None:
-                raise ValueError("Snapshot has a missing trie node")
-            return bool(row[0]), int(row[1]), json.loads(row[2])
-
-        node_id = root[0]
-        for symbol in prefix:
-            node_id = next((child for edge, child in read_node(node_id)[2] if edge == symbol), None)
-            if node_id is None:
-                break
-        total = 0 if node_id is None else read_node(node_id)[1]
-        items = []
-        for rank in range(offset, min(offset + limit, total)):
-            remainder = rank
-            current = node_id
-            tokens = list(prefix)
-            while True:
-                accepting, _, edges = read_node(current)
-                if accepting:
-                    if remainder == 0:
-                        break
-                    remainder -= 1
-                for symbol, child in edges:
-                    size = read_node(child)[1]
-                    if remainder < size:
-                        tokens.append(symbol)
-                        current = child
-                        break
-                    remainder -= size
-                else:
-                    raise ValueError("Snapshot trie count is inconsistent")
-            items.append({"rank": str(rank), "tokens": tokens})
-        return {
-            "level": metadata["level"], "nonterminal": nonterminal,
-            "total": str(total), "offset": str(offset), "items": items,
-            "has_more": offset + len(items) < total, "prefix": prefix,
-        }
-    finally:
-        connection.close()
-
-
-def list_findings(path, nonterminal=None, offset=0, limit=25):
-    offset, limit = _page_arguments(offset, limit, 50)
-    connection = _open_snapshot(path)
-    try:
-        arguments = () if nonterminal is None else (_json(nonterminal),)
-        where = "" if nonterminal is None else " WHERE owner = ?"
-        total = connection.execute("SELECT COUNT(*) FROM findings" + where, arguments).fetchone()[0]
-        if offset >= total:
-            items = []
-        else:
-            rows = connection.execute("SELECT payload FROM findings" + where + " ORDER BY position LIMIT ? OFFSET ?", arguments + (limit, offset))
-            items = [json.loads(row[0]) for row in rows]
-        return {"total": total, "items": items}
-    finally:
-        connection.close()
-
-
 def read_findings(path):
     """Every finding record saved with a level, in the order found."""
     connection = _open_snapshot(path)
     try:
         return [json.loads(row[0]) for row in connection.execute("SELECT payload FROM findings ORDER BY position")]
-    finally:
-        connection.close()
-
-
-def get_finding(path, finding_id):
-    connection = _open_snapshot(path)
-    try:
-        row = connection.execute("SELECT payload FROM findings WHERE id = ?", (str(finding_id),)).fetchone()
-        if row is None:
-            raise KeyError(finding_id)
-        return json.loads(row[0])
     finally:
         connection.close()

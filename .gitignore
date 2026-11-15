@@ -1,35 +1,6 @@
-# Python
 __pycache__/
 *.pyc
 .venv/
-
-# Level caches of the UI and check_grammar.py (regenerated on demand)
+.ambiguity_cache/
 .ui_cache/
-
-# LaTeX build output
-report/*.aux
-report/*.log
-report/*.out
-report/*.toc
-report/*.bbl
-report/*.blg
-report/*.fls
-report/*.fdb_latexmk
-report/*.synctex.gz
-report/*.pdf
-
 .DS_Store
-
-# matplotlib cache
-.matplotlib/
-
-# Claude Code per-machine settings
-.claude/settings.local.json
-
-# Claude's memory stays per-computer, never in the repo
-claude-memory/
-
-# Third-party material kept local, never committed
-*.pdf
-cfront/
-benchmark_results/.cache/

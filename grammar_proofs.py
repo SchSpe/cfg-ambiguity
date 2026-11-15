@@ -1,9 +1,10 @@
+"""Reconstruct and verify ambiguity witnesses against grammar productions."""
+
 import hashlib
 import json
 from functools import lru_cache
 
 import grammar_engine as implementation
-
 
 
 class ProofLimitExceeded(RuntimeError):
