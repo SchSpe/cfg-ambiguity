@@ -5,10 +5,6 @@ from functools import lru_cache
 import grammar_engine as implementation
 
 
-class ProofLimitExceeded(RuntimeError):
-    pass
-
-
 class GrammarCatalog:
     def __init__(self, data):
         self.terminals = {name: implementation.Terminal(name) for name in data["terminals"]}
@@ -84,50 +80,10 @@ def build_grammar(data):
     return GrammarCatalog(data)
 
 
-def finding_from_record(record, catalog):
-    """The AmbiguityFinding a saved record was made from: summarize_finding's
-    record, with the raw_factorizations the worker adds."""
-    owner = catalog.nonterminals[record["owner"]]
-    formula = owner.definition
-    for part in record["path"]:
-        formula = formula.formula if part == "inner" else getattr(formula, part)
-    pairs = record.get("raw_factorizations")
-    pairs = tuple((implementation.Sentence.from_symbols(left), implementation.Sentence.from_symbols(right))
-                  for left, right in pairs) if pairs else None
-    return implementation.AmbiguityFinding(
-        record["kind"], implementation.Sentence.from_symbols(record["witness"]), owner, formula,
-        record["level"], tuple(record["path"]), pairs, alternatives=record.get("alternative_paths", ()))
-
-
-def summarize_finding(finding, catalog):
-    catalog.check_finding(finding)
-    witness = list(finding.sentence.symbols)
-    alternatives = [list(path) for path in finding.alternatives]
-    # The rules of a union's two alternatives, or every rule at or below the path.
-    sites = [tuple(path) for path in alternatives] or [tuple(finding.path)]
-    return {
-        "kind": finding.kind,
-        "owner": finding.nonterminal.name,
-        "level": finding.iteration,
-        "path": list(finding.path),
-        "alternative_paths": alternatives,
-        "expression": implementation.format_formula(finding.formula),
-        "witness": witness,
-        "candidate_production_ids": [rule_id for path in sites
-                                     for rule_id in catalog.site_rules[finding.nonterminal.name, path]],
-    }
-
-
 class WitnessParser:
-    def __init__(self, catalog, tokens, level, max_states=100000):
-        if max_states is not None and (not isinstance(max_states, int)
-                                       or isinstance(max_states, bool) or max_states < 1):
-            raise ValueError("max_states must be a positive integer or None")
+    def __init__(self, catalog, tokens, level):
         self.catalog = catalog
         self.tokens = tuple(tokens)
-        self.level = level
-        self.max_states = max_states
-        self.states = 0
         self.minimum = [{name: float("inf") for name in catalog.nonterminals}]
         self.maximum = [{name: -1 for name in catalog.nonterminals}]
         self.bounds = lru_cache(maxsize=None)(self._bounds)
@@ -144,15 +100,7 @@ class WitnessParser:
             raise
         self.parse = lru_cache(maxsize=None)(self._parse)
 
-    def _consume_state(self):
-        self.states += 1
-        if self.max_states is not None and self.states > self.max_states:
-            raise ProofLimitExceeded(
-                f"Proof verification exceeded the {self.max_states:,}-state work limit. "
-                "The parse trees could not be fully reconstructed.")
-
     def _bounds(self, formula, budget):
-        self._consume_state()
         if isinstance(formula, implementation.Terminal):
             return 1, 1
         if isinstance(formula, implementation.Epsilon):
@@ -170,7 +118,6 @@ class WitnessParser:
         return left_min + right_min, left_max + right_max
 
     def _parse(self, formula, budget, begin, end):
-        self._consume_state()
         minimum, maximum = self.bounds(formula, budget)
         if end - begin < minimum or end - begin > maximum:
             return None
@@ -239,11 +186,10 @@ def _production_tree(catalog, rule_id, tree, level):
             "tokens": tree["tokens"], "children": [tree]}
 
 
-def prove_finding(finding, catalog, max_states=100000):
+def prove_finding(finding, catalog):
     """Verify and return two derivations of a finding's witness."""
     catalog.check_finding(finding)
-    parser = WitnessParser(catalog, finding.sentence.symbols, finding.iteration - 1,
-                           max_states=max_states)
+    parser = WitnessParser(catalog, finding.sentence.symbols, finding.iteration - 1)
     try:
         return _prove_finding(finding, catalog, parser)
     finally:

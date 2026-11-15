@@ -20,8 +20,7 @@ python check_grammar.py grammar.txt
 
 This writes `grammar.ambiguity.txt` beside the input file. The report includes
 the verdict, search depth, source line numbers, witness sentences, and two
-drawn parse trees for each listed ambiguity. It also explains any limit that
-stopped the search or prevented a tree from being reconstructed.
+drawn parse trees for each listed ambiguity.
 
 Choose a different report filename or search depth:
 
@@ -49,15 +48,11 @@ Bare-symbol rules also work, for example `E ::= E + E` and
 `E ::= n`. In that format, symbols on a left-hand side are nonterminals and
 other symbols are terminals.
 
-## Limits and results
+## Search depth and results
 
-The default search level is 6, with a 90-second computation limit and a 2048 MiB
-worker memory limit. Change these with `--level`, `--max-seconds`, and
-`--max-memory-mb`.
-
-Each run analyzes the input afresh. If a limit stops the search, the report
-includes the completed levels and findings. Temporary computation files are
-removed when the run ends.
+The engine runs directly, checking parse trees up to height 6 by default.
+Use `--level` to change the depth. Each run analyzes the input afresh and
+writes the report when it finishes. Press Ctrl+C to cancel a run.
 
 A witness proves ambiguity. Finding no witness covers only the levels checked;
 the grammar is proved unambiguous only when the relevant languages stop growing.
@@ -69,12 +64,12 @@ unambiguous, or only the requested depth was checked.
 | 0 | No ambiguity found through the checked depth, or proved unambiguous |
 | 1 | An ambiguity reachable from the start symbol was found |
 | 2 | Invalid input or command line |
-| 3 | A limit stopped the search |
 | 4 | The run failed |
+| 130 | The run was cancelled |
 
-Parse trees are always included when reconstruction succeeds. All ambiguity
-sites found within the checked depth are reported. Use `--help` for the
-available options.
+Each reported ambiguity includes two verified parse trees. All ambiguity sites
+found within the checked depth are reported. Use `--help` for the available
+options.
 
 ## License
 

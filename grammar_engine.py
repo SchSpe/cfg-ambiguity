@@ -21,8 +21,8 @@ Ambiguity is observed in the two operations while the formulas are evaluated:
 One witness proves an ambiguity, so each overlapping pair of alternatives and
 each ambiguous concatenation is recorded once per level, as an
 AmbiguityFinding holding its shortest witness. Grammar.step advances all
-nonterminal languages by one level. check_grammar.py runs these steps in a
-limited worker process and reports the findings with their source rules.
+nonterminal languages by one level. check_grammar.py runs these steps directly
+and reports the findings with their source rules and parse trees.
 
 The file contains sentences and the tries that store finite languages;
 Language, a trie plus the witnesses of the operation that produced it;

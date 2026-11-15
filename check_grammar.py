@@ -4,40 +4,36 @@ for each witness:
     python check_grammar.py grammar.txt
     python check_grammar.py grammar.txt -o report.txt --level 8
 
-The default report is <stem>.ambiguity.txt beside the grammar. Each run
-checks parse trees through the requested height under time and memory
-limits. Progress and errors go to standard error.
+The default report is <stem>.ambiguity.txt beside the grammar. The engine
+checks parse trees through the requested height, stopping earlier if the
+languages stop growing. Errors and the saved report path go to standard error.
 
 Exit status: 0 means no ambiguity found (or proved unambiguous), 1 means
-ambiguous, 2 means unreadable input, 3 means a limit stopped the search,
-and 4 means the run or report write failed.
+ambiguous, 2 means unreadable input, 4 means the run or report write failed,
+and 130 means interrupted.
 """
 
 import argparse
+from copy import copy
 from itertools import zip_longest
-import math
 import os
 from pathlib import Path
 import sys
 import tempfile
 import textwrap
-import time
 
-from grammar_engine import ConcatenationFormula, parse_grammar
-import analysis_runtime
-from grammar_proofs import ProofLimitExceeded, build_grammar, finding_from_record, prove_finding
+from grammar_engine import ConcatenationFormula, format_formula, parse_grammar
+from grammar_proofs import build_grammar, prove_finding
 
 
 DEFAULT_LEVEL = 6
-DEFAULT_SECONDS = 90
-DEFAULT_MEMORY_MB = 2048
-NONE_FOUND, AMBIGUOUS, UNREADABLE, LIMITED, FAILED = range(5)
+NONE_FOUND, AMBIGUOUS, UNREADABLE, FAILED = 0, 1, 2, 4
 
 EPILOG = """\
 examples:
   python check_grammar.py grammar.txt
   python check_grammar.py grammar.txt -o report.txt
-  python check_grammar.py grammar.txt --level 8 --max-seconds 60
+  python check_grammar.py grammar.txt --level 8
 
 BNF rules use A ::= x y | z, with more alternatives on lines beginning
 with | or repeated left sides. Nonterminals may use <name> notation.
@@ -48,8 +44,8 @@ exit status:
   0  no ambiguity found through the level, or proved unambiguous
   1  ambiguous
   2  the grammar or command line cannot be read
-  3  a time or memory limit stopped the search
   4  the run or report write failed
+  130  interrupted
 """
 
 
@@ -67,7 +63,9 @@ def read_grammar(path):
         raise InputError(f"{path} isn't UTF-8 text") from None
     try:
         cfg = parse_grammar(text).cfg
-        data = analysis_runtime.grammar_data(cfg)
+        data = {"start": cfg.start, "terminals": list(cfg.terminals),
+                "nonterminals": list(cfg.nonterminals),
+                "productions": [{"lhs": lhs, "rhs": list(rhs)} for lhs, rhs in cfg.productions]}
     except (ValueError, TypeError) as error:
         raise InputError(str(error)) from None
     except RecursionError:
@@ -109,66 +107,26 @@ def analyse(data):
     return reached, used, unproductive
 
 
-def saturated(levels, used):
-    """Whether the languages the start symbol is built from stopped growing at
-    the last level: then no later level adds a sentence or an ambiguity."""
-    return len(levels) > 1 and all(levels[-1]["counts"][name] == levels[-2]["counts"][name] for name in used)
-
-
-def settled(levels, used):
-    """The levels up to the first one at which saturated() holds, so that a
-    report doesn't depend on how many more a worker saved before it was stopped."""
-    for number in range(2, len(levels) + 1):
-        if saturated(levels[:number], used):
-            return levels[:number]
-    return levels
-
-
-def compute(data, level, directory, seconds, memory_mb, used, say):
-    """Compute levels within the limits, returning completed summaries and
-    the reason for stopping before the requested level, if any."""
-    started = time.monotonic()
-    start = data["start"]
-    levels = analysis_runtime.prepare_directory(directory, data)
-
-    def record_saved():
-        while len(levels) <= level and analysis_runtime.level_file(directory, len(levels)).exists():
-            levels.append(analysis_runtime.read_summary(analysis_runtime.level_file(directory, len(levels))))
-            details = levels[-1]
-            say(f"level {details['level']}: {details['counts'][start]} sentences of {start}, "
-                f"{details['findings_count']} ambiguous site(s), {time.monotonic() - started:.1f} s")
-
-    def on_event(event):
-        if event.get("saved"):
-            record_saved()
-
-    process, error_path = analysis_runtime.start_worker(directory, level)
-    try:
-        reason = analysis_runtime.follow_worker(
-            process, analysis_runtime.memory_reader(), lambda: memory_mb * 1024 ** 2,
-            deadline=started + seconds, on_event=on_event,
-            cancelled=lambda: saturated(levels, used))
-    finally:
-        analysis_runtime.end_worker(process, directory)
-    # Include levels saved just before the worker exited.
-    record_saved()
-    levels = settled(levels, used)
-    if len(levels) > level or saturated(levels, used):
-        return levels, None
-    failed = len(levels)
-    if reason == "memory":
-        return levels, {"reason": "memory",
-                        "message": f"Level {failed} stopped at the {memory_mb} MiB memory limit."}
-    if reason in ("deadline", "level time"):
-        limit = seconds if reason == "deadline" else analysis_runtime.LEVEL_SECONDS
-        return levels, {"reason": "time",
-                        "message": f"Level {failed} stopped at the {limit:g}-second time limit."}
-    if reason == "monitor":
-        return levels, {"reason": "monitor",
-                        "message": f"Level {failed} stopped because the worker's memory couldn't be read."}
-    error = error_path.read_text(errors="replace").strip()[-1500:]
-    return levels, {"reason": "error",
-                    "message": f"Level {failed} failed: {error or 'the worker exited without saving it'}"}
+def compute(catalog, level, used):
+    """Run the engine directly, retaining the latest witness for each site."""
+    grammar = catalog.grammar
+    previous = {name: nt.next.trie.root.size for name, nt in catalog.nonterminals.items()}
+    sites = {}
+    final = False
+    for _ in range(level):
+        for finding in grammar.step():
+            owner = finding.nonterminal.name
+            paths = finding.alternatives or (finding.path,)
+            rules = tuple(rule_id for path in paths for rule_id in catalog.site_rules[owner, tuple(path)])
+            key = (finding.kind, owner, rules, tuple(finding.path))
+            sites.setdefault(key, {"first_level": finding.iteration, "rules": rules})["finding"] = finding
+        grammar.findings.clear()
+        counts = {name: nt.next.trie.root.size for name, nt in catalog.nonterminals.items()}
+        final = all(counts[name] == previous[name] for name in used)
+        if final:
+            break
+        previous = counts
+    return list(sites.values()), final
 
 
 def _rule_text(rule):
@@ -186,47 +144,36 @@ def _names(names):
     return shown + (f" and {len(names) - 10} more" if len(names) > 10 else "")
 
 
-def _derivations(record, first_level, catalog):
-    """A record's finding and the two derivations of its witness, taken at
-    the earliest level that has both. The proof checker returns the first
-    derivation it meets within a level, which at a late level can run through
-    a chain of empty rules; at the earliest level the trees are no taller
-    than the ambiguity needs."""
-    for level in range(first_level, record["level"]):
-        finding = finding_from_record({**record, "level": level}, catalog)
+def _derivations(finding, first_level, catalog):
+    """Verify the latest witness at the earliest level that derives it both
+    ways, keeping its trees no taller than the ambiguity needs."""
+    for level in range(first_level, finding.iteration):
+        earlier = copy(finding)
+        earlier.iteration = level
         try:
-            return finding, prove_finding(finding, catalog)
-        except (ProofLimitExceeded, ValueError):
-            continue        # the witness isn't derived both ways this early, or it takes too much work to tell
-    finding = finding_from_record(record, catalog)
-    return finding, prove_finding(finding, catalog)
+            return prove_finding(earlier, catalog)
+        except ValueError:
+            continue
+    return prove_finding(finding, catalog)
 
 
-def build_report(path, data, places, level, levels, stopped, directory):
-    catalog = build_grammar(data)
+def build_report(path, data, places, level, catalog, sites, final):
     position = {rule["id"]: index for index, rule in enumerate(catalog.rules)}
     texts = [_rule_text(rule) for rule in catalog.rules]
-    reached, used, unproductive = analyse(data)
-
-    sites = {}
-    for number in range(1, len(levels)):
-        for record in analysis_runtime.read_findings(analysis_runtime.level_file(directory, number)):
-            rules = tuple(position[rule_id] for rule_id in record["candidate_production_ids"])
-            key = (record["kind"], record["owner"], rules,
-                   record["expression"] if record["kind"] == "concatenation" else None)
-            sites.setdefault(key, {"first_level": number, "rules": rules})["record"] = record
+    reached, _, unproductive = analyse(data)
 
     entries = []
-    for key, site in sites.items():
-        record = site["record"]
-        entry = {"kind": record["kind"], "nonterminal": record["owner"],
-                 "first_level": site["first_level"], "reachable": record["owner"] in reached,
-                 "rules": [{"text": texts[rule], "source": places[rule]} for rule in site["rules"]],
-                 "witness": record["witness"]}
-        if record["kind"] == "concatenation":
-            entry["expression"] = record["expression"]
-            entry["cuts"] = sorted(len(left) for left, _ in record["raw_factorizations"])
-        entries.append(((site["first_level"], min(site["rules"]), record["kind"], key), entry, record))
+    for site in sites:
+        finding = site["finding"]
+        rules = tuple(position[rule_id] for rule_id in site["rules"])
+        owner = finding.nonterminal.name
+        entry = {"kind": finding.kind, "nonterminal": owner,
+                 "first_level": site["first_level"], "reachable": owner in reached,
+                 "rules": [{"text": texts[rule], "source": places[rule]} for rule in rules],
+                 "witness": list(finding.sentence.symbols)}
+        order = (site["first_level"], min(rules), finding.kind, owner, rules,
+                 format_formula(finding.formula) if finding.kind == "concatenation" else "")
+        entries.append((order, entry, finding, rules))
     entries.sort(key=lambda item: item[0])
 
     def parse_tree(node):
@@ -238,32 +185,27 @@ def build_report(path, data, places, level, levels, stopped, directory):
             return [{"symbol": node["symbol"], "rule": texts[position[node["production_id"]]], "children": children}]
         return children
 
-    for _, entry, record in entries:
-        try:
-            finding, derivations = _derivations(record, entry["first_level"], catalog)
-        except (ProofLimitExceeded, ValueError) as error:
-            entry["trees_error"] = str(error)
-            continue
-        if record["kind"] == "union":
+    for _, entry, finding, rules in entries:
+        derivations = _derivations(finding, entry["first_level"], catalog)
+        if finding.kind == "union":
             entry["trees"] = [parse_tree(derivation)[0] for derivation in derivations]
             continue
-        rule = catalog.rules[position[record["candidate_production_ids"][0]]]
-        root = {"symbol": record["owner"], "rule": _rule_text(rule)}
+        rule = catalog.rules[rules[0]]
+        root = {"symbol": finding.nonterminal.name, "rule": _rule_text(rule)}
         if _symbol_count(finding.formula) < len(rule["rhs"]):
             root["rhs_prefix"] = _symbol_count(finding.formula)
         entry["trees"] = [{**root, "children": parse_tree(derivation)} for derivation in derivations]
 
-    final = saturated(levels, used)
-    if any(entry["reachable"] for _, entry, _ in entries):
+    if any(entry["reachable"] for _, entry, _, _ in entries):
         verdict, code = "ambiguous", AMBIGUOUS
     else:
-        verdict = "unambiguous" if final else "none_found"
-        code = (FAILED if stopped["reason"] == "error" else LIMITED) if stopped and not final else NONE_FOUND
+        verdict, code = ("unambiguous" if final else "none_found"), NONE_FOUND
 
     start = data["start"]
-    reached_level = len(levels) - 1
+    reached_level = catalog.grammar.iteration
+    start_sentences = catalog.nonterminals[start].next.trie.root.size
     warnings = []
-    if reached_level and levels[-1]["counts"][start] == "0":
+    if not start_sentences:
         warnings.append(f"{start} derives no sentence {'at all' if final else f'through level {reached_level}'}.")
     if unproductive:
         warnings.append(f"No sentence can be derived from {_names(unproductive)}.")
@@ -278,11 +220,10 @@ def build_report(path, data, places, level, levels, stopped, directory):
                     "nonterminals": len(data["nonterminals"]), "terminals": len(data["terminals"])},
         "requested_level": level,
         "level_reached": reached_level,
-        "start_sentences": levels[-1]["counts"][start],
+        "start_sentences": str(start_sentences),
         "verdict": verdict,
-        "stopped": stopped,
         "site_count": len(entries),
-        "sites": [entry for _, entry, _ in entries],
+        "sites": [entry for _, entry, _, _ in entries],
         "warnings": warnings,
     }
 
@@ -360,7 +301,7 @@ def _site_lines(number, site, grammar):
     places = [rule.get("source", "") for rule in site["rules"]]
     places = [f"line {place[len(file):]}" if place.startswith(file) else place for place in places]
     width = max(map(len, rules))
-    trees = site.get("trees")
+    trees = site["trees"]
 
     lines = [f"{number}. {site['kind'].capitalize()} ambiguity in {site['nonterminal']}, "
              f"first seen at level {site['first_level']}"]
@@ -372,18 +313,9 @@ def _site_lines(number, site, grammar):
     lines += [f"     {rule.ljust(width)}    ({place})" if place else f"     {rule}"
               for rule, place in zip(rules, places)]
     witness = f"   Witness: {_sentence(site['witness'])}"
-    if trees and "rhs_prefix" in trees[0]:
+    if "rhs_prefix" in trees[0]:
         witness += f", from the rule's first {trees[0]['rhs_prefix']} symbols"
     lines.append(witness)
-
-    if trees is None:
-        if not union:
-            first, second = (f"{_sentence(site['witness'][:cut])} | {_sentence(site['witness'][cut:])}"
-                             for cut in site["cuts"])
-            lines += [f"   Divided as: {first}", f"          and: {second}",
-                      f"   The ambiguous product, in the engine's notation: {site['expression']}"]
-        reason = site.get("trees_error", "The proof could not be reconstructed.")
-        return lines + [""] + _wrapped(f"Parse trees: not drawn. {reason}", "   ", "   ")
 
     if union:
         # A union site's trees are in the order of its rules; two rules with
@@ -402,35 +334,24 @@ def _site_lines(number, site, grammar):
 
 
 def render_text(report):
-    """A report as plain text: the verdict, what was checked, then each listed
-    site and the report's warnings."""
+    """The verdict, search depth, ambiguity witnesses and their parse trees."""
     grammar = report["grammar"]
     name = grammar["file"]
     start, level, asked = grammar["start"], report["level_reached"], report["requested_level"]
-    count, verdict, stopped = report["site_count"], report["verdict"], report["stopped"]
+    count, verdict = report["site_count"], report["verdict"]
     found = _plural(count, "ambiguity", "ambiguities")
 
     if verdict == "ambiguous":
         lines = [f"AMBIGUOUS: {found} found in {name}"]
     elif verdict == "unambiguous":
         lines = [f"UNAMBIGUOUS: {name} is proved unambiguous"]
-    elif not level:
-        lines = [f"NOT CHECKED: no level of {name} finished"]
-    elif stopped:
-        lines = [f"NO AMBIGUITY FOUND in {name} through level {level}",
-                 f"The run stopped there, so levels {level + 1} to {asked} were not checked."]
     else:
         lines = [f"NO AMBIGUITY FOUND in {name} through level {level}",
                  "Deeper parse trees were not checked; a higher --level looks further."]
     if count and verdict != "ambiguous":
         lines += _wrapped(f"Listed below: {found} in rules that no sentence of {start} is derived through.", "", "")
 
-    if not level:
-        checked = "no level finished"
-    elif stopped:
-        checked = f"through level {level} of the {asked} asked for"
-    elif level < asked:
-        # The run ended early without a limit: the languages stopped growing.
+    if level < asked:
         checked = (f"through level {level}, which added nothing to the languages {start} is built from, "
                    f"so no later level can")
     else:
@@ -439,10 +360,7 @@ def render_text(report):
               f"Grammar:    {_plural(grammar['rules'], 'rule')}, {_plural(grammar['nonterminals'], 'nonterminal')}, "
               f"{_plural(grammar['terminals'], 'terminal')}, start symbol {start}"]
     lines += _wrapped(checked, "Checked:    ", "            ")
-    if stopped:
-        lines += _wrapped(stopped["message"], "Stopped:    ", "            ")
-    if level:
-        lines.append(f"Sentences:  {_amount(report['start_sentences'])} of {start} at level {level}")
+    lines.append(f"Sentences:  {_amount(report['start_sentences'])} of {start} at level {level}")
 
     for number, site in enumerate(report["sites"], 1):
         lines += ["", *_site_lines(number, site, grammar)]
@@ -480,18 +398,14 @@ def save_report(path, text, protected):
             temporary.unlink(missing_ok=True)
 
 
-def _count(minimum, kind=int):
-    def read(text):
-        try:
-            value = kind(text)
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"not a number: {text}") from None
-        if kind is float and not math.isfinite(value):
-            raise argparse.ArgumentTypeError("must be a finite number")
-        if value < minimum:
-            raise argparse.ArgumentTypeError(f"must be at least {minimum}")
-        return value
-    return read
+def positive_level(text):
+    try:
+        level = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {text}") from None
+    if level < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return level
 
 
 def main(argv=None):
@@ -501,12 +415,8 @@ def main(argv=None):
     parser.add_argument("grammar", metavar="FILE", help="BNF grammar text file")
     parser.add_argument("-o", "--output", metavar="FILE",
                         help="report file (default: <stem>.ambiguity.txt beside the grammar)")
-    parser.add_argument("--level", type=_count(1), default=DEFAULT_LEVEL,
+    parser.add_argument("--level", type=positive_level, default=DEFAULT_LEVEL,
                         help=f"check parse trees up to this height (default {DEFAULT_LEVEL})")
-    parser.add_argument("--max-seconds", type=_count(0.001, float), default=DEFAULT_SECONDS,
-                        help=f"stop computing after this many seconds (default {DEFAULT_SECONDS})")
-    parser.add_argument("--max-memory-mb", type=_count(64), default=DEFAULT_MEMORY_MB,
-                        help=f"stop the worker at this many MiB (default {DEFAULT_MEMORY_MB})")
     args = parser.parse_args(argv)
     if args.grammar == "-" or args.output == "-":
         parser.error("name input and output files; '-' streams are not supported")
@@ -514,33 +424,39 @@ def main(argv=None):
     def say(message):
         print(f"check_grammar: {message}", file=sys.stderr, flush=True)
 
-    protected = [Path(args.grammar)]
     try:
-        output = Path(args.output) if args.output is not None else Path(args.grammar).with_suffix(".ambiguity.txt")
-        check_output_path(output, protected)
-    except (OSError, ValueError) as error:
-        say(f"Can't choose report output: {error}")
-        return FAILED
-    try:
-        data, places = read_grammar(args.grammar)
-    except InputError as error:
-        say(str(error))
-        return UNREADABLE
-    _, used, _ = analyse(data)
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="ambiguity-") as temporary:
-            directory = Path(temporary)
-            levels, stopped = compute(data, args.level, directory, args.max_seconds, args.max_memory_mb, used, say)
-            report = build_report(args.grammar, data, places, args.level, levels, stopped, directory)
-    except (OSError, RuntimeError) as error:
-        say(f"The run failed: {error}")
-        return FAILED
-    try:
-        save_report(output, render_text(report), protected)
-    except (OSError, ValueError) as error:
-        say(f"Can't write report to {output}: {error}")
-        return FAILED
+        protected = [Path(args.grammar)]
+        try:
+            output = Path(args.output) if args.output is not None else Path(args.grammar).with_suffix(".ambiguity.txt")
+            check_output_path(output, protected)
+        except (OSError, ValueError) as error:
+            say(f"Can't choose report output: {error}")
+            return FAILED
+        try:
+            data, places = read_grammar(args.grammar)
+            catalog = build_grammar(data)
+        except RecursionError:
+            say("The grammar is nested too deeply for the engine")
+            return UNREADABLE
+        except (InputError, ValueError) as error:
+            say(str(error))
+            return UNREADABLE
+        try:
+            _, used, _ = analyse(data)
+            sites, final = compute(catalog, args.level, used)
+            report = build_report(args.grammar, data, places, args.level, catalog, sites, final)
+            text = render_text(report)
+        except (RuntimeError, ValueError, MemoryError) as error:
+            say(f"The run failed: {error}")
+            return FAILED
+        try:
+            save_report(output, text, protected)
+        except (OSError, ValueError) as error:
+            say(f"Can't write report to {output}: {error}")
+            return FAILED
+    except KeyboardInterrupt:
+        say("Interrupted; no partial report was written.")
+        return 130
     say(f"report saved to {output}")
     return report["exit_code"]
 
