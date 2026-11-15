@@ -1,8 +1,7 @@
 # CFG ambiguity checker
 
-Read a BNF text file and save an ambiguity report with the rules involved,
-witness sentences, two parse trees per witness, and recognized ambiguity-causing
-constructs.
+Read a BNF text file, apply the NSF report's CACC repairs, approximate the
+repaired grammar while detecting ambiguity, and save a report.
 
 Requires Python 3.11 or later. It uses only the standard library.
 
@@ -19,9 +18,9 @@ Save your BNF grammar as `grammar.txt`:
 python check_grammar.py grammar.txt
 ```
 
-This writes `grammar.ambiguity.txt` beside the input file. The report includes
-the verdict, search depth, source line numbers, witness sentences, two drawn
-parse trees for each witness, and certain ambiguity-causing constructs (CACCs).
+This writes `grammar.ambiguity.txt` beside the input file. This example contains
+a self-embedding construct, so the checker repairs it before searching.
+The verdict and exit status describe the repaired grammar.
 
 Choose a different report filename or search depth:
 
@@ -29,8 +28,60 @@ Choose a different report filename or search depth:
 python check_grammar.py grammar.txt --output report.txt --level 8
 ```
 
-Reports are UTF-8 text. Running again replaces the previous report. The command
-refuses to overwrite the input grammar.
+Reports are UTF-8 text. Running again replaces the previous report. The input
+grammar is never edited, and the command refuses to use it as the report path.
+
+## The four stages
+
+1. **Parse text.** `read_grammar()` calls `grammar_parser.parse_grammar()`.
+   The result is a `CFG` containing production tuples, source lines, terminal
+   and nonterminal names, and the start symbol.
+2. **Apply NSF CACC repairs.** `grammar_caccs.repair_caccs()` applies the
+   supported Section 6 rewrites to a copy of that grammar. It returns the
+   revised grammar, the changes made, and any remaining recognized constructs.
+3. **Approximate and detect.** `grammar_analysis.approximate_and_detect()`
+   builds the engine formulas and advances the repaired grammar's finite
+   languages one level at a time. Union and concatenation detection stay inside
+   those calculations. The search stops at the requested level or when every
+   language the start symbol depends on stops growing.
+4. **Report.** `grammar_report.build_report()` reconstructs the witness trees
+   and determines the verdict for the repaired grammar. `render_text()` formats
+   the result; `save_report()` writes it only after the report is complete.
+
+The main calls in `check_grammar.py` follow that order:
+
+```text
+read_grammar(input)
+    -> repair_caccs(original)
+    -> approximate_and_detect(repairs.grammar, level)
+    -> build_report(input, original, repairs, approximation)
+    -> render_text(report)
+    -> save_report(...)
+```
+
+For example, the two rules `E ::= E + E` and `E ::= n` are initially stored as:
+
+```python
+cfg.productions = (("E", ("E", "+", "E")), ("E", ("n",)))
+cfg.production_lines = (1, 2)
+cfg.start = "E"
+```
+
+Repairs operate on those production tuples. Approximation then builds a graph
+of `Nonterminal`, `Terminal`, `UnionFormula`, and `ConcatenationFormula` objects.
+Each nonterminal's finite language is a shared prefix tree (`Trie`); a witness
+is a tuple of tokens. The proof code reconstructs trees from the repaired
+productions rather than storing every derivation during approximation.
+
+| File | Responsibility |
+| --- | --- |
+| `check_grammar.py` | Command arguments, the four-stage sequence, file input/output |
+| `grammar_parser.py` | BNF parsing and the `CFG` production representation |
+| `grammar_caccs.py` | Structural recognition and language-preserving repairs |
+| `grammar_engine.py` | Formula objects, finite-language tries, approximation and detection |
+| `grammar_analysis.py` | Dependency analysis and the bounded approximation loop |
+| `grammar_proofs.py` | Reconstruction of two checked trees for a witness |
+| `grammar_report.py` | Evidence, verdicts, and readable report formatting |
 
 ## BNF input
 
@@ -51,54 +102,79 @@ other symbols are terminals.
 
 ## Search depth and results
 
-The engine runs directly, checking parse trees up to height 6 by default.
-Use `--level` to change the depth. Each run analyzes the input afresh and
-writes the report when it finishes. Press Ctrl+C to cancel a run.
+The engine runs directly, checking the repaired grammar's parse trees up to
+height 6 by default. Use `--level` to change the depth. Each run starts afresh;
+there is no disk cache or background worker. Press Ctrl+C to cancel a run.
 
-A witness or a reachable CACC proves ambiguity. Finding no witness covers only
-the levels checked; the grammar is proved unambiguous only when the relevant
-languages stop growing.
-The report states whether ambiguity was found, the grammar was proved
-unambiguous, or only the requested depth was checked.
+A reachable witness or remaining CACC establishes ambiguity in the repaired
+grammar. Finding no witness covers only the levels checked; the grammar is
+proved unambiguous only when the relevant languages stop growing and no
+reachable ambiguity remains. Removing the recognized NSF constructs alone
+does not establish unambiguity.
+
+The report includes the before-and-after repair history, the full grammar that
+was checked, remaining CACCs, and two verified trees for each reported witness.
+Unchanged rules keep their source lines; changed and newly introduced rules are
+labeled `generated`. Those labels distinguish input locations from generated
+rules, whose internal source-line value is 0.
 
 | Exit status | Meaning |
 | --- | --- |
 | 0 | No ambiguity found through the checked depth, or proved unambiguous |
-| 1 | An ambiguity reachable from the start symbol was found |
+| 1 | An ambiguity reachable from the repaired grammar's start symbol was found |
 | 2 | Invalid input or command line |
 | 4 | The run failed |
 | 130 | The run was cancelled |
 
-Each witness includes two verified parse trees. All ambiguity sites found
-within the checked depth are reported. A CACC can establish ambiguity before
-the witness search reaches it; the report then suggests increasing `--level`
-to find parse trees. Use `--help` for the available options.
+The two detected kinds are **union ambiguity**, where alternatives generate the
+same sentence, and **concatenation ambiguity**, where a sentence has two valid
+boundaries between factors. Repeated discoveries at one location are collected
+into one reported site. A remaining CACC can establish ambiguity before the
+bounded search finds its witness; increasing `--level` can find its parse trees.
+Use `--help` for the available options.
 
 ## CACC recognition and rewrites
 
-`grammar_caccs.py` recognizes seven constructs: mixed recursion, self-embedding,
-duplicate alternatives, repeated optional expressions, transparent cycles,
-subsumed alternatives, and dangling suffixes. The report lists each match with
-its nonterminal, source lines, and an explanation. These structural checks are
-independent of `--level`; a construct in an unreachable definition does not
-change the verdict.
+The automatic repair stage uses the four implemented families directly
+prescribed in Section 6 of the NSF report:
 
-Rewrites are explicit Python calls using the same `CFG` returned by
-`grammar_engine.parse_grammar(text)`:
+- Mixed recursion: Corollary 1.
+- Self-embedding: Corollary 2.
+- Duplicate alternatives: union idempotency.
+- Repeated optional expressions: Example 7.
+
+These rewrites preserve the generated terminal language. They do not introduce
+a separate precedence or associativity policy. The repair loop checks again
+after each change and stops when no eligible construct remains, progress
+stalls, or its rewrite limit is reached. The report records unfinished repairs.
+
+Recognition also covers transparent cycles, subsumed alternatives, and dangling
+suffixes. These extensions are reported but are not automatically rewritten by
+the NSF stage. All structural checks are independent of `--level`; a construct
+that cannot occur in a completed start-symbol sentence does not change the
+verdict.
+
+The Python APIs accept the `CFG` returned by `grammar_parser.parse_grammar(text)`:
 
 - `recognize_caccs(cfg)` returns the matches.
+- `repair_caccs(cfg)` applies the four NSF rewrite families used by the checker.
 - `apply_cacc(cfg, match)` applies one supported rewrite to a copy.
-- `transform_caccs(cfg, max_steps=100)` applies supported rewrites repeatedly.
+- `transform_caccs(cfg, max_steps=100)` explicitly applies supported rewrites
+  across all seven families.
 
 Matches identify rules by zero-based `production_indices`. For matches within
 a rule, `rhs_spans` contains `(production_index, start, end)` with an exclusive
 end position. Both refer directly to `cfg.productions`.
 
 The rewrite result contains `grammar`, `changes`, `remaining`, `limit_reached`,
-and `stalled`. A recognized construct can remain when its rewrite's conditions
-are not met. Inspect the result before using the rewritten grammar; removing
-these patterns does not establish unambiguity. Changed and generated rules have
-source line 0; unchanged rules retain their input line numbers.
+and `stalled`. A recognized construct can remain when it is outside the selected
+repair families or its rewrite's conditions are not met.
+
+## Tests
+
+```sh
+python -m unittest discover -s . -p "test_*.py"
+```
 
 ## License
 

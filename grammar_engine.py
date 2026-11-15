@@ -21,12 +21,14 @@ Ambiguity is observed in the two operations while the formulas are evaluated:
 One witness proves an ambiguity, so each overlapping pair of alternatives and
 each ambiguous concatenation is recorded once per level, as an
 AmbiguityFinding holding its shortest witness. Grammar.step advances all
-nonterminal languages by one level. check_grammar.py runs these steps directly
-and reports the findings with their source rules and parse trees.
+nonterminal languages by one level. The approximation stage collects those
+findings; the reporting stage reconstructs their parse trees.
 
 Finite languages are shared prefix trees; witnesses are tuples of tokens.
 The formula evaluator records ambiguities while advancing those languages.
-The BNF reader retains productions and source lines for the report.
+GrammarCatalog turns a parsed CFG into formulas and indexes their source
+productions. Text parsing lives in grammar_parser; proof reconstruction lives
+in grammar_proofs.
 
 References
 
@@ -37,8 +39,10 @@ References
     context-free grammars and language expressions. Preprint, 2011.
 """
 
-import re
 from types import MappingProxyType
+
+# Preserve the original public imports; parsing lives in grammar_parser.
+from grammar_parser import CFG, parse_grammar
 
 
 # ----- Finite languages ------------------------------------------------------
@@ -371,22 +375,6 @@ class AmbiguityFinding:
         self.alternatives = alternatives
 
 
-class CFG:
-    """Productions as written, one (lhs, rhs) per rule; the first lhs is the start."""
-
-    def __init__(self, productions, production_lines):
-        self.productions = tuple((lhs, tuple(rhs)) for lhs, rhs in productions)
-        if not self.productions:
-            raise ValueError("No grammar rules")
-        self.production_lines = tuple(production_lines)
-        self.start = self.productions[0][0]
-        self.nonterminals = tuple(dict.fromkeys(lhs for lhs, _ in self.productions))
-        names = set(self.nonterminals)
-        self.terminals = tuple(dict.fromkeys(
-            symbol for _, rhs in self.productions for symbol in rhs if symbol not in names
-        ))
-
-
 class Grammar:
     """A fixed grammar and its current level of finite-language approximation.
 
@@ -456,156 +444,50 @@ class Grammar:
         return findings
 
 
-# ----- Reading BNF productions ----------------------------------------------
-
-def parse_grammar(source):
-    """Parse BNF or bare-symbol rules into a CFG.
-
-    ``<expr> ::= <expr> "+" <expr> | "n"`` and ``E ::= E + E`` are both
-    accepted. Alternatives can share a line, repeat the left-hand side, or
-    continue on a line beginning with ``|``. An empty alternative or ``ε``
-    means the empty string. ``#`` and ``//`` begin comments outside quotes.
-
-    Names on left-hand sides are nonterminals. Explicit ``<name>`` references
-    must be defined; other bare symbols are terminals. Quoted tokens retain
-    their spelling, including quotes and escapes, and may contain spaces or
-    grammar delimiters. Quotes can be escaped with a backslash. EBNF options,
-    repetitions and grouping are rejected; write productions instead.
-
-    ``cfg.production_lines`` gives the source line of each expanded
-    alternative, in production order.
-    """
-    lines = source.splitlines() if isinstance(source, str) else source
-    productions = []
-    production_lines = []
-    references = []
-    lhs = None
-    for line_number, raw_line in enumerate(lines, 1):
-        if not isinstance(raw_line, str):
-            raise TypeError(f"Line {line_number} must be a string")
-        tokens = _grammar_tokens(raw_line, line_number)
-        if not tokens:
-            continue
-        if tokens[0] == "|":
-            if lhs is None:
-                raise ValueError(f"Line {line_number}: an alternative needs a preceding production")
-            rhs = tokens[1:]
-            if "::=" in rhs:
-                raise ValueError(f"Line {line_number}: a continuation cannot contain '::='")
-        else:
-            if tokens.count("::=") != 1:
-                raise ValueError(f"Line {line_number}: expected exactly one '::='")
-            if tokens.index("::=") != 1 or tokens[0] in ("ε", "epsilon") or _is_quoted(tokens[0]):
-                raise ValueError(f"Line {line_number}: expected one nonterminal before '::='")
-            lhs, rhs = tokens[0], tokens[2:]
-            _check_symbols([lhs], line_number)
-        alternatives = [[]]
-        for token in rhs:
-            if token == "|":
-                alternatives.append([])
-            else:
-                alternatives[-1].append(token)
-        for alternative in alternatives:
-            _check_symbols(alternative, line_number, bnf=bool(_NONTERMINAL.fullmatch(lhs)))
-            if "ε" in alternative and alternative != ["ε"]:
-                raise ValueError(f"Line {line_number}: ε must be the entire alternative")
-            body = [] if alternative == ["ε"] else alternative
-            productions.append((lhs, body))
-            production_lines.append(line_number)
-            references.extend((symbol, line_number) for symbol in body if _NONTERMINAL.fullmatch(symbol))
-    defined = {name for name, _ in productions}
-    for name, line_number in references:
-        if name not in defined:
-            raise ValueError(f"Line {line_number}: undefined nonterminal {name}; add its productions "
-                             f"or quote '{name}' if it is a terminal")
-    return CFG(productions, production_lines)
+# ----- Building formulas from BNF productions -------------------------------
 
 
-_NONTERMINAL = re.compile(r"<[^<>\s]+>")
-# EBNF's postfix operators on a name or a closing bracket: x*, x+, x?, )?, ]*.
-# Operator tokens such as ++ or .* aren't names, so they stay terminals.
-_EBNF_POSTFIX = re.compile(r"(?:\w[\w'.-]*|.*[)\]}])[?*+]+")
+class GrammarCatalog:
+    """Build the engine formulas once and tie their paths to BNF productions."""
+
+    def __init__(self, cfg):
+        self.rules = cfg.productions
+        self.nonterminals = {name: Nonterminal(name) for name in cfg.nonterminals}
+        symbols = {name: Terminal(name) for name in cfg.terminals} | self.nonterminals
+        self.rules_by_lhs = {name: [] for name in self.nonterminals}
+        self.rule_formulas = []
+        self.rule_paths = [None] * len(self.rules)
+        self.site_rules = {}
+        for index, (lhs, rhs) in enumerate(self.rules):
+            self.rules_by_lhs[lhs].append(index)
+            self.rule_formulas.append(_join([symbols[name] for name in rhs], ConcatenationFormula))
+        for name, nonterminal in self.nonterminals.items():
+            rules = self.rules_by_lhs[name]
+            nonterminal.definition = _join([self.rule_formulas[index] for index in rules], UnionFormula)
+            self._index_definition(name, nonterminal.definition, rules, ())
+        self.grammar = Grammar(self.nonterminals.values())
+
+    def _index_definition(self, owner, formula, rules, path):
+        # Definitions and right sides are left-associated chains built by _join.
+        for rule in reversed(rules[1:]):
+            self.rule_paths[rule] = path + ("right",)
+            self._index_rhs(owner, formula.right, rule, path + ("right",))
+            formula, path = formula.left, path + ("left",)
+        self.rule_paths[rules[0]] = path
+        self._index_rhs(owner, formula, rules[0], path)
+
+    def _index_rhs(self, owner, formula, rule, path):
+        while True:
+            self.site_rules[owner, path] = (rule,)
+            if not isinstance(formula, ConcatenationFormula):
+                break
+            formula, path = formula.left, path + ("left",)
 
 
-def _grammar_tokens(line, line_number):
-    """Split a rule without treating punctuation inside quoted tokens as syntax."""
-    tokens = []
-    position = 0
-    while position < len(line):
-        if line[position].isspace():
-            position += 1
-            continue
-        if line[position] == "#" or line.startswith("//", position):
-            break
-        if line.startswith("/*", position):
-            raise ValueError(f"Line {line_number}: block comments are not supported; use # or //")
-        if line.startswith("::=", position):
-            tokens.append("::=")
-            position += 3
-            continue
-        if line[position] == "|":
-            tokens.append("|")
-            position += 1
-            continue
-        start = position
-        if line[position] in "'\"":
-            quote = line[position]
-            position += 1
-            while position < len(line):
-                if line[position] == "\\":
-                    position += 2
-                elif line[position] == quote:
-                    position += 1
-                    break
-                else:
-                    position += 1
-            else:
-                raise ValueError(f"Line {line_number}: unterminated quoted terminal")
-            if position < len(line) and line[position] in "*+?":
-                raise ValueError(f"Line {line_number}: EBNF repetition or option is not supported; write productions instead")
-        elif match := _NONTERMINAL.match(line, position):
-            position = match.end()
-            if position < len(line) and line[position] in "*+?":
-                raise ValueError(f"Line {line_number}: EBNF repetition or option is not supported; write productions instead")
-        else:
-            while position < len(line) and not line[position].isspace():
-                if (line[position] in "|#" or line.startswith(("::=", "//", "/*"), position)
-                        or position > start and _NONTERMINAL.match(line, position)):
-                    break
-                position += 1
-        tokens.append(line[start:position])
-    return tokens
-
-
-def _is_quoted(symbol):
-    return len(symbol) > 1 and symbol[0] == symbol[-1] and symbol[0] in "'\""
-
-
-def _check_symbols(symbols, line_number, bnf=False):
-    """Raise ValueError for a right-hand-side symbol from another grammar
-    notation, saying what to write instead."""
-    quotes = bnf or any(map(_is_quoted, symbols)) or any(_NONTERMINAL.fullmatch(symbol) for symbol in symbols)
-    for symbol in symbols:
-        if _is_quoted(symbol):
-            continue
-        if _NONTERMINAL.fullmatch(symbol):
-            continue
-        if _EBNF_POSTFIX.fullmatch(symbol):
-            problem = (f"EBNF like {symbol} isn't read: write the repetition or option as "
-                       f"rules, or quote '{symbol}' if it's one token")
-        elif re.search(r"[()\[\]{}]", symbol) and re.search(r"\w", symbol):
-            problem = (f"the bracket in {symbol} needs spaces around it, or quote "
-                       f"'{symbol}' if it's one token")
-        elif quotes and symbol in ("(", ")", "[", "]", "{", "}"):
-            problem = (f"the unquoted {symbol} looks like EBNF in a rule that quotes its "
-                       f"tokens: write the option or repetition as rules, or quote "
-                       f"'{symbol}' if it's a token")
-        elif re.search(r"[<>]", symbol) and re.search(r"\w", symbol):
-            problem = (f"malformed nonterminal {symbol}: write <name>, or quote '{symbol}' "
-                       "if it is a terminal")
-        elif symbol == "epsilon":
-            problem = ("epsilon isn't read as the empty string: write ε, or quote "
-                       "'epsilon' if it's a token")
-        else:
-            continue
-        raise ValueError(f"Line {line_number}: {problem}")
+def _join(items, operator):
+    if not items:
+        return Epsilon()
+    result = items[0]
+    for item in items[1:]:
+        result = operator(result, item)
+    return result

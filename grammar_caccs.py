@@ -8,7 +8,18 @@ occurrences keep their source lines and generated productions use line 0.
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from grammar_engine import CFG
+from grammar_parser import CFG
+
+
+# The automatic stage follows the four directly implemented transformations
+# in Section 6. The other recognized constructs remain available to explicit
+# callers of apply_cacc() and transform_caccs().
+NSF_REPAIR_IDS = frozenset({
+    "mixed_recursion",       # Corollary 1
+    "self_embedding",        # Corollary 2
+    "duplicate_union",       # union idempotency
+    "optional_square",       # Example 7
+})
 
 
 @dataclass(frozen=True)
@@ -774,16 +785,31 @@ def apply_cacc(cfg, match):
     return CACCResult(result, [] if stalled else [change], recognize_caccs(result), stalled=stalled)
 
 
+def repair_caccs(cfg, max_steps=100):
+    """Apply the NSF Section 6 repairs to a copy before approximation.
+
+    Recognition extensions are retained in `remaining`, but are not rewritten
+    by this stage. They do not count as stalled repairs or an exhausted limit.
+    """
+    return _transform_caccs(cfg, max_steps, NSF_REPAIR_IDS)
+
+
 def transform_caccs(cfg, max_steps=100):
-    """Apply supported rewrites until none remain, progress stalls, or the limit is reached."""
+    """Explicitly apply all supported rewrites, including recognition extensions."""
+    return _transform_caccs(cfg, max_steps, None)
+
+
+def _transform_caccs(cfg, max_steps, rule_ids):
+    """Re-recognize after each rewrite; never revisit a previous rule set."""
     if type(max_steps) is not int or max_steps < 0:
         raise ValueError("max_steps must be a nonnegative integer")
     result = CFG(cfg.productions, cfg.production_lines)
     seen, changes, stalled = {result.productions}, [], False
     facts = _Facts(result.productions)
     matches = _recognize(facts)
-    while matches and len(changes) < max_steps:
-        for match in matches:
+    eligible = [match for match in matches if rule_ids is None or match.rule_id in rule_ids]
+    while eligible and len(changes) < max_steps:
+        for match in eligible:
             if not match.rewrite_available:
                 continue
             candidate, change = _rewrite(result, facts, match)
@@ -797,4 +823,5 @@ def transform_caccs(cfg, max_steps=100):
         changes.append(change)
         facts = _Facts(result.productions)
         matches = _recognize(facts)
-    return CACCResult(result, changes, matches, bool(matches) and len(changes) == max_steps, stalled)
+        eligible = [match for match in matches if rule_ids is None or match.rule_id in rule_ids]
+    return CACCResult(result, changes, matches, bool(eligible) and len(changes) == max_steps, stalled)
