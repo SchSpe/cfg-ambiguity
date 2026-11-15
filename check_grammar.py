@@ -2,16 +2,19 @@
 scripts, CI jobs and coding agents can use as well as people:
 
     python check_grammar.py grammar.txt --level 8
+    python check_grammar.py grammar.txt -o report.txt
 
-The grammar is rule text as grammar_engine.parse_grammar reads it (one rule
-per line, E ::= E + E) or cfg-productions-v1 JSON (grammar_io.py); - reads
-standard input. Levels are computed in a worker process under a
+The grammar is BNF text (E ::= E + E | id, or <expr> ::= <expr> + <expr> | id)
+or cfg-productions-v1 JSON (grammar_io.py); - reads standard input.
+Alternatives may continue on lines beginning with |. Levels run under a
 time and a memory limit, and cached per grammar, so a later call with a
-higher --level carries on from the last level done. The report goes to
-standard output: plain text that gives the verdict and then each ambiguity
-with its kind, its rules, a witness sentence and the witness's two parse
-trees, or, with --json, one JSON object for a program (--schema describes
-it). Progress goes to standard error, and the exit status is the verdict:
+higher --level carries on from the last level done. A text report is saved
+beside the grammar as <stem>.ambiguity.txt, with the verdict and each
+ambiguity's kind, rules, witness sentence and two parse trees. --output
+chooses another file; --output - writes to standard output. JSON reports
+(--json) and reports for standard input go to standard output by default.
+--schema describes the JSON format. Progress goes to standard error, and
+the exit status is the verdict:
 
     0  no ambiguity found through the requested level, or the grammar is
        proved unambiguous (its languages stopped growing, with none found)
@@ -60,16 +63,17 @@ exit status:
 
 examples:
   python check_grammar.py g1.txt --level 6
-  python check_grammar.py g1.txt --level 6 > report.txt
+  python check_grammar.py g1.txt --level 6 -o report.txt
+  python check_grammar.py g1.txt -o -
   python check_grammar.py g1.txt --level 10 --max-seconds 60 --json --trees
   python check_grammar.py g1.txt --json --max-findings 0 > accepted.json
   python check_grammar.py g1.txt --accept accepted.json
   python check_grammar.py --schema
 
-Rule text has one rule per line, A ::= x y, with alternatives as repeated
-left sides and an empty right side for the empty string. Names on a left
-side are nonterminals and every other symbol is a terminal; quote a token
-such as '|' or 'x*' that would otherwise read as other notation. Levels are
+BNF rules use A ::= x y | z, with more alternatives on lines beginning
+with | or repeated left sides. Nonterminals may use <name> notation.
+An empty alternative denotes the empty string. Quote a token such as '|'
+or 'x*' that would otherwise read as notation. Levels are
 cached per grammar, so a later run with a higher --level continues where
 this one stopped.
 """
@@ -216,9 +220,8 @@ def read_grammar(path):
                 "name": "check_grammar", "start": cfg.start, "terminals": list(cfg.terminals),
                 "nonterminals": list(cfg.nonterminals),
                 "productions": [{"lhs": lhs, "rhs": list(rhs)} for lhs, rhs in cfg.productions]})
-            # parse_grammar reads each line that isn't blank as one rule.
             name = "stdin" if path == "-" else str(path)
-            places = [f"{name}:{number}" for number, line in enumerate(text.splitlines(), 1) if line.strip()]
+            places = [f"{name}:{number}" for number in cfg.production_lines]
     except json.JSONDecodeError as error:
         raise InputError(f"Line {error.lineno}: {error.msg} (the text starts with {{, so it is read as JSON)") from None
     except (ValueError, TypeError) as error:
@@ -738,6 +741,33 @@ def fail(message, code, as_json):
     return code
 
 
+def check_output_path(path, protected):
+    """Keep a report from replacing its grammar or acceptance input."""
+    resolved = path.resolve()
+    for source in protected:
+        if resolved == source.resolve() or (path.exists() and source.exists() and path.samefile(source)):
+            raise ValueError(f"the report would overwrite input file {source}")
+
+
+def save_report(path, text, protected):
+    """Write UTF-8 beside the destination and replace it only after success."""
+    check_output_path(path, protected)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
+                                         prefix=f".{path.name}.", suffix=".tmp",
+                                         dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        check_output_path(path, protected)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def _count(minimum, kind=int):
     def read(text):
         try:
@@ -753,9 +783,10 @@ def _count(minimum, kind=int):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="check_grammar.py", epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="Check a context-free grammar for ambiguity and print a report: plain text, or JSON with --json.")
+        description="Check a context-free grammar for ambiguity and write a report with parse trees.")
     parser.add_argument("grammar", nargs="?",
-                        help="rule text (E ::= E + E, one rule per line) or cfg-productions-v1 JSON; - reads standard input")
+                        help="BNF text (E ::= E + E | id, with optional <name> nonterminals) "
+                             "or cfg-productions-v1 JSON; - reads standard input")
     parser.add_argument("--level", type=_count(1), default=DEFAULT_LEVEL,
                         help=f"check parse trees up to this height (default {DEFAULT_LEVEL})")
     parser.add_argument("--max-seconds", type=_count(0.001, float), default=DEFAULT_SECONDS,
@@ -765,7 +796,10 @@ def main(argv=None):
     parser.add_argument("--max-findings", type=_count(0), default=DEFAULT_FINDINGS,
                         help=f"list at most this many sites; 0 lists all (default {DEFAULT_FINDINGS})")
     parser.add_argument("--json", action="store_true",
-                        help="print the report as one JSON object, for a program, instead of as text")
+                        help="write the report as one JSON object instead of text (default: standard output)")
+    parser.add_argument("-o", "--output", metavar="PATH",
+                        help="report destination; - writes to standard output (default: <stem>.ambiguity.txt "
+                             "beside the grammar, or standard output for --json or standard input)")
     parser.add_argument("--trees", action="store_true",
                         help="with --json, add two parse trees of each listed site's witness "
                              "(the text report always draws them)")
@@ -779,18 +813,31 @@ def main(argv=None):
     parser.add_argument("--schema", action="store_true", help="print the JSON Schema of the --json report and exit")
     args = parser.parse_args(argv)
     if args.schema:
+        if args.output not in (None, "-"):
+            parser.error("--schema writes to standard output; omit --output or use --output -")
         emit(SCHEMA)
         return NONE_FOUND
     if args.grammar is None:
         parser.error("name a grammar file, or - for standard input")
     say = (lambda message: None) if args.quiet else (
         lambda message: print(f"check_grammar: {message}", file=sys.stderr, flush=True))
+    output = None
+    protected = [Path(path) for path in (args.grammar, args.accept) if path not in (None, "-")]
+    try:
+        if args.output not in (None, "-"):
+            output = Path(args.output)
+        elif args.output is None and not args.json and args.grammar != "-":
+            output = Path(args.grammar).with_suffix(".ambiguity.txt")
+        if output is not None:
+            check_output_path(output, protected)
+    except (OSError, ValueError) as error:
+        return fail(f"Can't choose report output: {error}", FAILED, False)
 
     try:
         data, places = read_grammar(args.grammar)
         accepted = read_accepted(args.accept) if args.accept else set()
     except InputError as error:
-        return fail(str(error), UNREADABLE, args.json)
+        return fail(str(error), UNREADABLE, args.json and output is None)
     _, used, _ = analyse(data)
 
     lock = temporary = None
@@ -809,13 +856,21 @@ def main(argv=None):
         report = build_report(args.grammar, data, places, args.level, levels, stopped, directory,
                               accepted, args.max_findings, args.trees or not args.json, args.timings)
     except (OSError, RuntimeError) as error:
-        return fail(f"The run failed: {error}", FAILED, args.json)
+        return fail(f"The run failed: {error}", FAILED, args.json and output is None)
     finally:
         if lock is not None:
             lock.unlink(missing_ok=True)
         if temporary is not None:
             temporary.cleanup()
-    if args.json:
+    if output is not None:
+        try:
+            text = (json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+                    if args.json else render_text(report))
+            save_report(output, text, protected)
+        except (OSError, ValueError) as error:
+            return fail(f"Can't write report to {output}: {error}", FAILED, False)
+        say(f"report saved to {output}")
+    elif args.json:
         emit(report)
     else:
         write(render_text(report))

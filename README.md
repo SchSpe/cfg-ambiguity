@@ -1,32 +1,64 @@
 # CFG ambiguity checker
 
-Check a context-free grammar for ambiguity from the command line. The checker
-reports the rules involved, a witness sentence, and two parse trees.
+Read a BNF text file and save an ambiguity report with the rules involved,
+witness sentences, and two parse trees for each reported ambiguity.
 
 Requires Python 3.11 or later. It uses only the standard library.
 
 ## Run
 
-Save a grammar as `grammar.txt`, with one production per line:
+Save your BNF grammar as `grammar.txt`:
 
 ```text
-E ::= E + E
-E ::= n
+<expr> ::= <expr> "+" <expr>
+         | "n"
 ```
 
 ```sh
-python check_grammar.py grammar.txt --level 6
-python check_grammar.py grammar.txt --level 6 --json --trees
+python check_grammar.py grammar.txt
 ```
 
-Repeat the left-hand side for alternatives. An empty right-hand side means
-epsilon. Unquoted `|`, EBNF notation, and comments are rejected. Quote literal
-tokens such as `'|'`. Symbols on a left-hand side are nonterminals; all other
-symbols are terminals. The first left-hand side is the start symbol.
+This writes `grammar.ambiguity.txt` beside the input file. The report includes
+the verdict, search depth, source line numbers, witness sentences, and two
+drawn parse trees for each listed ambiguity. It also explains any limit that
+stopped the search or prevented a tree from being reconstructed.
 
-The command also accepts `cfg-productions-v1` JSON. Use `-` as the filename to
-read standard input. Use `--help` for all options or `--schema` for the JSON
-report schema.
+Choose a different report filename or search depth:
+
+```sh
+python check_grammar.py grammar.txt --output report.txt --level 8
+```
+
+Reports are UTF-8 text. Running again replaces the previous report. The command
+refuses to overwrite the input grammar or an acceptance file.
+
+## BNF input
+
+Use `::=` for a production and `|` between alternatives. An alternative can
+continue on the next line if it starts with `|`. Repeating the left-hand side
+also works. The first left-hand side is the start symbol.
+
+Use `<name>` for a nonterminal and single or double quotes for literal terminals.
+An undefined `<name>` is an error. Quotes remain in terminal labels in the
+report, and a quoted string is one token even if it contains spaces or `|`.
+An empty alternative or unquoted `ε` means the empty string. Comments start
+with `#` or `//` outside quotes. EBNF repetition and optional-group notation
+are not supported; write them as BNF productions instead.
+
+The earlier bare-symbol format still works, for example `E ::= E + E` and
+`E ::= n`. In that format, symbols on a left-hand side are nonterminals and
+other symbols are terminals.
+
+Use `--output -` to print the report instead of saving it. The command also
+accepts `cfg-productions-v1` JSON and `-` as the input filename for standard
+input. Standard-input and JSON reports go to standard output unless you give
+an output filename. To save a JSON report with parse trees:
+
+```sh
+python check_grammar.py grammar.txt --json --trees --output report.json
+```
+
+Use `--help` for all options or `--schema` for the JSON report schema.
 
 ## Limits and results
 
