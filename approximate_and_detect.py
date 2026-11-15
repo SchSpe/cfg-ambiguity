@@ -27,8 +27,8 @@ findings; the reporting stage reconstructs their parse trees.
 Finite languages are shared prefix trees; witnesses are tuples of tokens.
 The formula evaluator records ambiguities while advancing those languages.
 GrammarCatalog turns a parsed CFG into formulas and indexes their source
-productions. Text parsing lives in grammar_parser; proof reconstruction lives
-in grammar_report.
+productions. Text parsing lives in parse; proof reconstruction lives
+in report.
 
 References
 
@@ -42,8 +42,7 @@ References
 from dataclasses import dataclass
 from types import MappingProxyType
 
-# Preserve the original public imports; parsing lives in grammar_parser.
-from grammar_parser import CFG, parse_grammar
+from parse import CFG
 
 
 # ----- Finite languages ------------------------------------------------------

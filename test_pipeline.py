@@ -14,10 +14,10 @@ import unittest
 from unittest.mock import patch
 
 import check_grammar
-from grammar_engine import approximate_and_detect
-from grammar_caccs import repair_caccs, transform_caccs
-from grammar_parser import parse_grammar
-from grammar_report import build_report, prove_finding, render_text
+from approximate_and_detect import approximate_and_detect
+from repair import repair_caccs, transform_caccs
+from parse import parse_grammar
+from report import build_report, prove_finding, render_text
 
 
 ROOT = Path(__file__).resolve().parent

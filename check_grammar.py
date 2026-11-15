@@ -11,10 +11,10 @@ from pathlib import Path
 import sys
 import tempfile
 
-from grammar_parser import parse_grammar
-from grammar_caccs import repair_caccs
-from grammar_engine import approximate_and_detect
-from grammar_report import build_report, render_text
+from parse import parse_grammar
+from repair import repair_caccs
+from approximate_and_detect import approximate_and_detect
+from report import build_report, render_text
 
 
 DEFAULT_LEVEL = 6

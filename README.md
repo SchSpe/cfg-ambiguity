@@ -33,18 +33,18 @@ grammar is never edited, and the command refuses to use it as the report path.
 
 ## The four stages
 
-1. **Parse text.** `read_grammar()` calls `grammar_parser.parse_grammar()`.
+1. **Parse text.** `read_grammar()` calls `parse.parse_grammar()`.
    The result is a `CFG` containing production tuples, source lines, terminal
    and nonterminal names, and the start symbol.
-2. **Apply NSF CACC repairs.** `grammar_caccs.repair_caccs()` applies the
+2. **Apply NSF CACC repairs.** `repair.repair_caccs()` applies the
    supported Section 6 rewrites to a copy of that grammar. It returns the
    revised grammar, the changes made, and any remaining recognized constructs.
-3. **Approximate and detect.** `grammar_engine.approximate_and_detect()`
+3. **Approximate and detect.** `approximate_and_detect.approximate_and_detect()`
    builds the engine formulas and advances the repaired grammar's finite
    languages one level at a time. Union and concatenation detection stay inside
    those calculations. The search stops at the requested level or when every
    language the start symbol depends on stops growing.
-4. **Report.** `grammar_report.build_report()` reconstructs the witness trees
+4. **Report.** `report.build_report()` reconstructs the witness trees
    and determines the verdict for the repaired grammar. `render_text()` formats
    the result; `save_report()` writes it only after the report is complete.
 
@@ -79,10 +79,10 @@ Each stage has one module. `check_grammar.py` is the command entry point, and
 | File | Responsibility |
 | --- | --- |
 | `check_grammar.py` | Command arguments, the four-stage sequence, file input/output |
-| `grammar_parser.py` | BNF parsing and the `CFG` production representation |
-| `grammar_caccs.py` | Structural recognition and language-preserving repairs |
-| `grammar_engine.py` | Dependency analysis, formula objects, finite-language tries, approximation and detection |
-| `grammar_report.py` | Witness reconstruction, verdicts, and report formatting |
+| `parse.py` | BNF parsing and the `CFG` production representation |
+| `repair.py` | Structural recognition and language-preserving repairs |
+| `approximate_and_detect.py` | Dependency analysis, formula objects, finite-language tries, approximation and detection |
+| `report.py` | Witness reconstruction, verdicts, and report formatting |
 
 ## BNF input
 
@@ -155,7 +155,7 @@ the NSF stage. All structural checks are independent of `--level`; a construct
 that cannot occur in a completed start-symbol sentence does not change the
 verdict.
 
-The Python APIs accept the `CFG` returned by `grammar_parser.parse_grammar(text)`:
+The Python APIs accept the `CFG` returned by `parse.parse_grammar(text)`:
 
 - `recognize_caccs(cfg)` returns the matches.
 - `repair_caccs(cfg)` applies the four NSF rewrite families used by the checker.

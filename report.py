@@ -9,7 +9,7 @@ from functools import lru_cache
 from itertools import zip_longest
 import textwrap
 
-import grammar_engine as engine
+import approximate_and_detect as engine
 
 
 def build_report(path, original, repairs, approximation):

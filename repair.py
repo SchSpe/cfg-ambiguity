@@ -8,7 +8,7 @@ occurrences keep their source lines and generated productions use line 0.
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from grammar_parser import CFG
+from parse import CFG
 
 
 # The automatic stage follows the four directly implemented transformations
