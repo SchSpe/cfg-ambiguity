@@ -1,7 +1,8 @@
 # CFG ambiguity checker
 
 Read a BNF text file and save an ambiguity report with the rules involved,
-witness sentences, and two parse trees for each reported ambiguity.
+witness sentences, two parse trees per witness, and recognized ambiguity-causing
+constructs.
 
 Requires Python 3.11 or later. It uses only the standard library.
 
@@ -19,8 +20,8 @@ python check_grammar.py grammar.txt
 ```
 
 This writes `grammar.ambiguity.txt` beside the input file. The report includes
-the verdict, search depth, source line numbers, witness sentences, and two
-drawn parse trees for each listed ambiguity.
+the verdict, search depth, source line numbers, witness sentences, two drawn
+parse trees for each witness, and certain ambiguity-causing constructs (CACCs).
 
 Choose a different report filename or search depth:
 
@@ -54,8 +55,9 @@ The engine runs directly, checking parse trees up to height 6 by default.
 Use `--level` to change the depth. Each run analyzes the input afresh and
 writes the report when it finishes. Press Ctrl+C to cancel a run.
 
-A witness proves ambiguity. Finding no witness covers only the levels checked;
-the grammar is proved unambiguous only when the relevant languages stop growing.
+A witness or a reachable CACC proves ambiguity. Finding no witness covers only
+the levels checked; the grammar is proved unambiguous only when the relevant
+languages stop growing.
 The report states whether ambiguity was found, the grammar was proved
 unambiguous, or only the requested depth was checked.
 
@@ -67,9 +69,31 @@ unambiguous, or only the requested depth was checked.
 | 4 | The run failed |
 | 130 | The run was cancelled |
 
-Each reported ambiguity includes two verified parse trees. All ambiguity sites
-found within the checked depth are reported. Use `--help` for the available
-options.
+Each witness includes two verified parse trees. All ambiguity sites found
+within the checked depth are reported. A CACC can establish ambiguity before
+the witness search reaches it; the report then suggests increasing `--level`
+to find parse trees. Use `--help` for the available options.
+
+## CACC recognition and rewrites
+
+`grammar_caccs.py` recognizes seven constructs: mixed recursion, self-embedding,
+duplicate alternatives, repeated optional expressions, transparent cycles,
+subsumed alternatives, and dangling suffixes. The report lists each match with
+its nonterminal and an explanation. These structural checks are independent of
+`--level`; a construct in an unreachable definition does not change the verdict.
+
+Rewrites are explicit Python calls using the same `CFG` returned by
+`grammar_engine.parse_grammar(text)`:
+
+- `recognize_caccs(cfg)` returns the matches.
+- `apply_cacc(cfg, match)` applies one supported rewrite to a copy.
+- `transform_caccs(cfg, max_steps=100)` applies supported rewrites repeatedly.
+
+The rewrite result contains `grammar`, `changes`, `remaining`, `limit_reached`,
+and `stalled`. A recognized construct can remain when its rewrite's conditions
+are not met. Inspect the result before using the rewritten grammar; removing
+these patterns does not establish unambiguity. Changed and generated rules have
+source line 0; unchanged rules retain their input line numbers.
 
 ## License
 

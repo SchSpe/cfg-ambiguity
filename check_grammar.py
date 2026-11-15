@@ -10,6 +10,7 @@ import textwrap
 
 from grammar_engine import format_formula, parse_grammar
 from grammar_proofs import GrammarCatalog, prove_finding
+from grammar_caccs import recognize_caccs
 
 
 DEFAULT_LEVEL = 6
@@ -110,6 +111,10 @@ def build_report(path, cfg, level):
     catalog = GrammarCatalog(cfg)
     reached, used, unproductive = analyse(cfg)
     sites, final = compute(catalog, level, used)
+    # A prefix witness cannot extend to a sentence when its rule has a dead suffix.
+    dead = set(unproductive)
+    sites = [site for site in sites if all(symbol not in dead
+             for rule in site["rules"] for symbol in cfg.productions[rule][1])]
     sites.sort(key=lambda site: (
         site["first_level"], min(site["rules"]), site["finding"].kind,
         site["finding"].nonterminal.name, site["rules"],
@@ -121,7 +126,9 @@ def build_report(path, cfg, level):
                         "first_level": site["first_level"], "reachable": finding.nonterminal.name in reached,
                         "rules": site["rules"], "witness": finding.sentence,
                         "trees": _derivations(finding, site["first_level"], catalog)})
-    ambiguous = any(entry["reachable"] for entry in entries)
+    caccs = recognize_caccs(cfg)
+    ambiguous = (any(entry["reachable"] for entry in entries)
+                 or any(match.nonterminal in reached for match in caccs))
     verdict = "ambiguous" if ambiguous else "unambiguous" if final else "none_found"
     level_reached = catalog.grammar.iteration
     count = catalog.nonterminals[cfg.start].next.root.size
@@ -136,7 +143,8 @@ def build_report(path, cfg, level):
                         f"so an ambiguity there doesn't make the grammar ambiguous.")
     return {"file": path, "cfg": cfg, "exit_code": AMBIGUOUS if ambiguous else NONE_FOUND,
             "requested_level": level, "level_reached": level_reached, "start_sentences": count,
-            "verdict": verdict, "sites": entries, "warnings": warnings}
+            "verdict": verdict, "sites": entries, "caccs": caccs,
+            "reachable": reached, "warnings": warnings}
 
 
 EMPTY = "(empty)"
@@ -229,7 +237,13 @@ def render_text(report):
     count, verdict = len(report["sites"]), report["verdict"]
     found = _plural(count, "ambiguity", "ambiguities")
     if verdict == "ambiguous":
-        lines = [f"AMBIGUOUS: {found} found in {name}"]
+        if any(site["reachable"] for site in report["sites"]):
+            lines = [f"AMBIGUOUS: {found} found in {name}"]
+        else:
+            lines = [f"AMBIGUOUS: a certain ambiguity-causing construct was found in {name}"]
+            lines += _wrapped("The structural check establishes ambiguity, but the depth-limited search "
+                              "has not found a witness reachable from the start symbol. "
+                              "Increase --level to search for its parse trees.", "", "")
     elif verdict == "unambiguous":
         lines = [f"UNAMBIGUOUS: {name} is proved unambiguous"]
     else:
@@ -247,6 +261,21 @@ def render_text(report):
     lines.append(f"Sentences:  {_amount(report['start_sentences'])} of {start} at level {level}")
     for number, site in enumerate(report["sites"], 1):
         lines += ["", *_site_lines(number, site, cfg)]
+    lines += ["", "Certain ambiguity-causing constructs (CACCs):"]
+    if not report["caccs"]:
+        lines.append("  None recognized.")
+    else:
+        lines.append("  Structural matches, checked independently of the search depth.")
+        for match in report["caccs"]:
+            first_rule = next(index for index, (lhs, _) in enumerate(cfg.productions)
+                              if lhs == match.nonterminal)
+            location = f"definition starts at line {cfg.production_lines[first_rule]}"
+            title = match.rule_id.replace("_", " ").capitalize()
+            lines += ["", f"  {title} in {match.nonterminal} ({location})"]
+            lines += _wrapped(match.reason, "    ", "    ")
+            if match.nonterminal not in report["reachable"]:
+                lines += _wrapped(f"No sentence of {start} is derived through {match.nonterminal}, "
+                                  "so this does not make the grammar ambiguous.", "    ", "    ")
     if report["warnings"]:
         lines += ["", "Notes:"]
         for warning in report["warnings"]:
