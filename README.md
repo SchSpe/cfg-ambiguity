@@ -39,7 +39,7 @@ grammar is never edited, and the command refuses to use it as the report path.
 2. **Apply NSF CACC repairs.** `grammar_caccs.repair_caccs()` applies the
    supported Section 6 rewrites to a copy of that grammar. It returns the
    revised grammar, the changes made, and any remaining recognized constructs.
-3. **Approximate and detect.** `grammar_analysis.approximate_and_detect()`
+3. **Approximate and detect.** `grammar_engine.approximate_and_detect()`
    builds the engine formulas and advances the repaired grammar's finite
    languages one level at a time. Union and concatenation detection stay inside
    those calculations. The search stops at the requested level or when every
@@ -73,15 +73,16 @@ Each nonterminal's finite language is a shared prefix tree (`Trie`); a witness
 is a tuple of tokens. The proof code reconstructs trees from the repaired
 productions rather than storing every derivation during approximation.
 
+Each stage has one module. `check_grammar.py` is the command entry point, and
+`test_pipeline.py` contains the tests.
+
 | File | Responsibility |
 | --- | --- |
 | `check_grammar.py` | Command arguments, the four-stage sequence, file input/output |
 | `grammar_parser.py` | BNF parsing and the `CFG` production representation |
 | `grammar_caccs.py` | Structural recognition and language-preserving repairs |
-| `grammar_engine.py` | Formula objects, finite-language tries, approximation and detection |
-| `grammar_analysis.py` | Dependency analysis and the bounded approximation loop |
-| `grammar_proofs.py` | Reconstruction of two checked trees for a witness |
-| `grammar_report.py` | Evidence, verdicts, and readable report formatting |
+| `grammar_engine.py` | Dependency analysis, formula objects, finite-language tries, approximation and detection |
+| `grammar_report.py` | Witness reconstruction, verdicts, and report formatting |
 
 ## BNF input
 

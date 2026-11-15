@@ -13,7 +13,7 @@ import tempfile
 
 from grammar_parser import parse_grammar
 from grammar_caccs import repair_caccs
-from grammar_analysis import approximate_and_detect
+from grammar_engine import approximate_and_detect
 from grammar_report import build_report, render_text
 
 
