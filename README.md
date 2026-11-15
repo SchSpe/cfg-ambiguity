@@ -30,7 +30,7 @@ python check_grammar.py grammar.txt --output report.txt --level 8
 ```
 
 Reports are UTF-8 text. Running again replaces the previous report. The command
-refuses to overwrite the input grammar or an acceptance file.
+refuses to overwrite the input grammar.
 
 ## BNF input
 
@@ -45,20 +45,9 @@ An empty alternative or unquoted `ε` means the empty string. Comments start
 with `#` or `//` outside quotes. EBNF repetition and optional-group notation
 are not supported; write them as BNF productions instead.
 
-The earlier bare-symbol format still works, for example `E ::= E + E` and
+Bare-symbol rules also work, for example `E ::= E + E` and
 `E ::= n`. In that format, symbols on a left-hand side are nonterminals and
 other symbols are terminals.
-
-Use `--output -` to print the report instead of saving it. The command also
-accepts `cfg-productions-v1` JSON and `-` as the input filename for standard
-input. Standard-input and JSON reports go to standard output unless you give
-an output filename. To save a JSON report with parse trees:
-
-```sh
-python check_grammar.py grammar.txt --json --trees --output report.json
-```
-
-Use `--help` for all options or `--schema` for the JSON report schema.
 
 ## Limits and results
 
@@ -66,33 +55,26 @@ The default search level is 6, with a 90-second computation limit and a 2048 MiB
 worker memory limit. Change these with `--level`, `--max-seconds`, and
 `--max-memory-mb`.
 
-Completed levels are cached in `.ambiguity_cache/` beside the program. A later
-run at a higher level resumes from the cache. Use `--cache PATH` to choose a
-different location. The cache can be deleted and regenerated.
+Each run analyzes the input afresh. If a limit stops the search, the report
+includes the completed levels and findings. Temporary computation files are
+removed when the run ends.
 
 A witness proves ambiguity. Finding no witness covers only the levels checked;
 the grammar is proved unambiguous only when the relevant languages stop growing.
-The JSON report distinguishes `ambiguous`, `none_found`, and `unambiguous`.
+The report states whether ambiguity was found, the grammar was proved
+unambiguous, or only the requested depth was checked.
 
 | Exit status | Meaning |
 | --- | --- |
-| 0 | No new ambiguity found, or proved unambiguous |
-| 1 | An ambiguity reachable from the start symbol is not in the acceptance file |
+| 0 | No ambiguity found through the checked depth, or proved unambiguous |
+| 1 | An ambiguity reachable from the start symbol was found |
 | 2 | Invalid input or command line |
 | 3 | A limit stopped the search |
 | 4 | The run failed |
 
-Save a baseline before editing the grammar, then compare the edited grammar
-against it to flag only new ambiguities:
-
-```sh
-python check_grammar.py grammar.txt --json --max-findings 0 > accepted.json
-# Edit grammar.txt, then:
-python check_grammar.py grammar.txt --json --accept accepted.json
-```
-
-Acceptance changes the exit status, not the reported verdict. Progress goes to
-standard error; `--quiet` suppresses it.
+Parse trees are always included when reconstruction succeeds. All ambiguity
+sites found within the checked depth are reported. Use `--help` for the
+available options.
 
 ## License
 

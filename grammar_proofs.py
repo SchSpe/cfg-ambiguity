@@ -1,7 +1,5 @@
 """Reconstruct and verify ambiguity witnesses against grammar productions."""
 
-import hashlib
-import json
 from functools import lru_cache
 
 import grammar_engine as implementation
@@ -13,10 +11,8 @@ class ProofLimitExceeded(RuntimeError):
 
 class GrammarCatalog:
     def __init__(self, data):
-        self.data = data
         self.terminals = {name: implementation.Terminal(name) for name in data["terminals"]}
         self.nonterminals = {name: implementation.Nonterminal(name) for name in data["nonterminals"]}
-        self.start = data["start"]
         symbols = self.terminals | self.nonterminals
         self.rules = []
         self.rules_by_lhs = {name: [] for name in self.nonterminals}
@@ -30,9 +26,7 @@ class GrammarCatalog:
             rhs = list(original["rhs"])
             formula = _join([symbols[name] for name in rhs], implementation.ConcatenationFormula)
             rule = dict(original)
-            rule.update(id=rule_id, rhs=rhs, source=dict(data.get("source", {})),
-                        text=f"{original['lhs']} → {' '.join(map(str, rhs)) if rhs else 'ε'}",
-                        algebraic=implementation.format_formula(formula))
+            rule.update(id=rule_id, rhs=rhs)
             self.rules.append(rule)
             self.rules_by_lhs[original["lhs"]].append(rule)
             self.rule_formulas[rule_id] = formula
@@ -45,8 +39,6 @@ class GrammarCatalog:
                 [self.rule_formulas[rule["id"]] for rule in rules], implementation.UnionFormula)
             self._index_definition(name, nonterminal.definition, rules, ())
         self.grammar = implementation.Grammar(self.terminals.values(), self.nonterminals.values())
-        self.formulas = {name: implementation.format_formula(nt.definition)
-                         for name, nt in self.nonterminals.items()}
         self._definitions = {name: nt.definition for name, nt in self.nonterminals.items()}
 
     def _index_definition(self, owner, formula, rules, path):
@@ -111,16 +103,9 @@ def summarize_finding(finding, catalog):
     catalog.check_finding(finding)
     witness = list(finding.sentence.symbols)
     alternatives = [list(path) for path in finding.alternatives]
-    key = [finding.kind, finding.nonterminal.name, finding.iteration, list(finding.path), witness]
-    if finding.factorizations is not None:
-        key.append(sorted(len(left.symbols) for left, _ in finding.factorizations))
-    if alternatives:
-        key.append(alternatives)
-    identifier = hashlib.sha256(json.dumps(key, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:20]
     # The rules of a union's two alternatives, or every rule at or below the path.
     sites = [tuple(path) for path in alternatives] or [tuple(finding.path)]
     return {
-        "id": identifier,
         "kind": finding.kind,
         "owner": finding.nonterminal.name,
         "level": finding.iteration,
@@ -130,8 +115,6 @@ def summarize_finding(finding, catalog):
         "witness": witness,
         "candidate_production_ids": [rule_id for path in sites
                                      for rule_id in catalog.site_rules[finding.nonterminal.name, path]],
-        "scope": "local",
-        "scope_note": "This proves ambiguity at the marked formula in this nonterminal's definition; it does not by itself prove ambiguity of the start symbol.",
     }
 
 
@@ -166,7 +149,7 @@ class WitnessParser:
         if self.max_states is not None and self.states > self.max_states:
             raise ProofLimitExceeded(
                 f"Proof verification exceeded the {self.max_states:,}-state work limit. "
-                "This witness has not been fully verified; increase max_states to retry.")
+                "The parse trees could not be fully reconstructed.")
 
     def _bounds(self, formula, budget):
         self._consume_state()
@@ -256,57 +239,40 @@ def _production_tree(catalog, rule_id, tree, level):
             "tokens": tree["tokens"], "children": [tree]}
 
 
-def _supporting_rules(trees):
-    found = set()
-    pending = list(trees)
-    while pending:
-        tree = pending.pop()
-        if "production_id" in tree:
-            found.add(tree["production_id"])
-        pending.extend(tree.get("children", []))
-    return found
-
-
-def serialize_finding(finding, catalog, max_states=100000):
-    result = summarize_finding(finding, catalog)
-    parser = WitnessParser(catalog, result["witness"], finding.iteration - 1, max_states=max_states)
+def prove_finding(finding, catalog, max_states=100000):
+    """Verify and return two derivations of a finding's witness."""
+    catalog.check_finding(finding)
+    parser = WitnessParser(catalog, finding.sentence.symbols, finding.iteration - 1,
+                           max_states=max_states)
     try:
-        return _prove_finding(finding, catalog, result, parser)
+        return _prove_finding(finding, catalog, parser)
     finally:
         parser.parse.cache_clear()
         parser.bounds.cache_clear()
 
 
-def _prove_finding(finding, catalog, result, parser):
-    owner = result["owner"]
+def _prove_finding(finding, catalog, parser):
+    owner = finding.nonterminal.name
     path = tuple(finding.path)
-    word = tuple(result["witness"])
+    word = tuple(finding.sentence.symbols)
     budget = finding.iteration - 1
     derivations = []
-    production_ids = set()
     if finding.kind == "union":
         if not isinstance(finding.formula, implementation.UnionFormula):
             raise ValueError("A union finding must refer to a union formula")
         if len(finding.alternatives) != 2:
             raise ValueError("A union finding must name its two alternatives")
-        alternatives = []
+        production_ids = []
         for side, alternative in zip(("left", "right"), finding.alternatives):
             rule_id = _alternative_rule(catalog, owner, path, side, alternative)
             tree = parser.require(catalog.rule_formulas[rule_id], budget, 0, len(word))
-            derivation = _production_tree(catalog, rule_id, tree, finding.iteration)
-            alternatives.append({"side": side, "expression": implementation.format_formula(catalog.rule_formulas[rule_id]),
-                                 "operand_expression": implementation.format_formula(getattr(finding.formula, side)),
-                                 "production_id": rule_id, "derivation": derivation})
-            derivations.append(derivation)
-            production_ids.add(rule_id)
-        if alternatives[0]["production_id"] == alternatives[1]["production_id"]:
+            derivations.append(_production_tree(catalog, rule_id, tree, finding.iteration))
+            production_ids.append(rule_id)
+        if production_ids[0] == production_ids[1]:
             raise ValueError("The union proof must use two distinct production occurrences")
-        result["alternatives"] = alternatives
-        result["proof_statement"] = "The same terminal sequence is derived by both highlighted production alternatives."
     elif finding.kind == "concatenation":
         if not isinstance(finding.formula, implementation.ConcatenationFormula):
             raise ValueError("A concatenation finding must refer to a product formula")
-        factorizations = []
         cuts = set()
         for left_sentence, right_sentence in finding.factorizations or ():
             left_tokens = tuple(left_sentence.symbols)
@@ -316,26 +282,11 @@ def _prove_finding(finding, catalog, result, parser):
             cut = len(left_tokens)
             left_tree = parser.require(finding.formula.left, budget, 0, cut)
             right_tree = parser.require(finding.formula.right, budget, cut, len(word))
-            tree = {"kind": "concatenation", "cut": cut, "tokens": list(word),
-                    "children": [left_tree, right_tree]}
-            factorizations.append({"cut": cut, "left": list(left_tokens), "right": list(right_tokens),
-                                   "left_derivation": left_tree, "right_derivation": right_tree,
-                                   "derivation": tree})
-            derivations.append(tree)
+            derivations.append({"kind": "concatenation", "cut": cut, "tokens": list(word),
+                                "children": [left_tree, right_tree]})
             cuts.add(cut)
         if len(cuts) < 2:
             raise ValueError("A concatenation proof requires two distinct token boundaries")
-        production_ids.update(catalog.site_rules[owner, path])
-        result["factorizations"] = factorizations
-        result["left_expression"] = implementation.format_formula(finding.formula.left)
-        result["right_expression"] = implementation.format_formula(finding.formula.right)
-        result["proof_statement"] = "The same terminal sequence admits two different boundaries between the highlighted product's left and right factors."
     else:
         raise ValueError(f"Unsupported ambiguity finding: {finding.kind}")
-    result["production_ids"] = [rule["id"] for rule in catalog.rules if rule["id"] in production_ids]
-    supporting = _supporting_rules(derivations) | production_ids
-    result["supporting_production_ids"] = [rule["id"] for rule in catalog.rules if rule["id"] in supporting]
-    result["derivations"] = derivations
-    result["verified"] = True
-    result["verification"] = "Both derivations were independently checked against the original productions at this finite level; displayed approximation samples are not used."
-    return result
+    return derivations

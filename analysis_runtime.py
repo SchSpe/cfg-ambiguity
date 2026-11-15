@@ -1,64 +1,43 @@
-"""Cached grammar analysis and supervised workers for check_grammar.py."""
+"""Run grammar analysis in a limited worker and retain each completed level."""
 
 import argparse
 from collections import Counter
-import hashlib
 import json
 import os
 from pathlib import Path
 import selectors
-import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
-from grammar_io import validate_grammar
 from grammar_proofs import build_grammar, summarize_finding
-from grammar_storage import load_languages, read_summary, save_snapshot
 
 
 ROOT = Path(__file__).resolve().parent
-STALE_CACHE_SECONDS = 7 * 24 * 3600
 LEVEL_SECONDS = 600  # Stop a worker that spends this long on one level.
 
 
-def custom_grammar(data):
-    """A grammar stripped to the fields the engine reads and checked like a
-    grammar.json file. The caps keep the
-    engine's recursive formula code well inside Python's recursion limit."""
-    if not isinstance(data, dict):
-        raise ValueError("Expected cfg-productions-v1 grammar data")
-    productions = data.get("productions")
-    if not isinstance(productions, list) or not productions:
-        raise ValueError("The grammar has no productions")
-    if len(productions) > 3000:
+def grammar_data(cfg):
+    """Prepare parsed productions for the worker, checking the engine's limits."""
+    if len(cfg.productions) > 3000:
         raise ValueError("A grammar can have at most 3000 productions here")
-    if not all(isinstance(rule, dict) for rule in productions):
-        raise ValueError("Each production must be an object with lhs and rhs")
-    name = data.get("name")
-    grammar = {
-        "format": "cfg-productions-v1",
-        "name": name.strip()[:200] if isinstance(name, str) and name.strip() else "Grammar",
-        "start": data.get("start"),
-        "terminals": data.get("terminals"),
-        "nonterminals": data.get("nonterminals"),
-        "productions": [{"lhs": rule.get("lhs"), "rhs": rule.get("rhs")} for rule in productions],
-    }
-    validate_grammar(grammar)
-    if max(Counter(rule["lhs"] for rule in grammar["productions"]).values()) > 400:
+    if max(Counter(lhs for lhs, _ in cfg.productions).values()) > 400:
         raise ValueError("A nonterminal can have at most 400 alternatives here")
-    if any(len(rule["rhs"]) > 200 for rule in grammar["productions"]):
+    if any(len(rhs) > 200 for _, rhs in cfg.productions):
         raise ValueError("A right-hand side can have at most 200 symbols here")
-    if any(not 1 <= len(symbol) <= 200 for symbol in grammar["terminals"] + grammar["nonterminals"]):
+    symbols = cfg.terminals + cfg.nonterminals
+    if any(not 1 <= len(symbol) <= 200 for symbol in symbols):
         raise ValueError("Symbol names must be 1 to 200 characters long")
-    for symbol in grammar["terminals"] + grammar["nonterminals"]:
+    for symbol in symbols:
         try:
             symbol.encode("utf-8")
         except UnicodeEncodeError:
             raise ValueError("Symbol names must be valid Unicode text") from None
-    grammar["name"] = grammar["name"].encode("utf-8", "replace").decode("utf-8")
-    return grammar
+    return {"start": cfg.start, "terminals": list(cfg.terminals),
+            "nonterminals": list(cfg.nonterminals),
+            "productions": [{"lhs": lhs, "rhs": list(rhs)} for lhs, rhs in cfg.productions]}
 
 
 def memory_reader():
@@ -184,61 +163,50 @@ class WindowsPipeSelector:
         self.keys.clear()
 
 
-def summary(grammar, seconds, memory, findings):
-    return {"level": grammar.iteration, "seconds": seconds,
+def summary(grammar, findings):
+    return {"level": grammar.iteration,
             "counts": {nt.name: str(nt.next.trie.root.size) for nt in grammar.nonterminals},
-            "findings_count": len(findings),
-            "findings_by_nonterminal": dict(Counter(item["owner"] for item in findings)),
-            "memory_bytes": memory, "created_at": time.time()}
+            "findings_count": len(findings)}
 
 
 def level_file(directory, level):
-    return Path(directory) / f"level-{level}.sqlite"
+    return Path(directory) / f"level-{level}.json"
 
 
-def cache_key(name, data):
-    """The name of a grammar's cache directory. It changes with the grammar
-    and with the code that computes and saves its levels, so no cache is
-    read by code that would have saved something else."""
-    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode())
-    for filename in ("grammar_engine.py", "grammar_proofs.py", "grammar_storage.py", "analysis_runtime.py"):
-        fingerprint.update((ROOT / filename).read_bytes())
-    return f"{name}-{fingerprint.hexdigest()[:16]}"
+def _write_json(path, data):
+    """Publish a complete checkpoint atomically, so interrupted writes are ignored."""
+    descriptor, temporary = tempfile.mkstemp(prefix=f"{path.name}.{os.getpid()}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(data, output, separators=(",", ":"), allow_nan=False)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
-def prepare_directory(directory, data, grammar):
-    """Give a grammar's cache directory its grammar.json and level 0, where
-    every language is empty, unless it has them; return the summaries of the
-    levels saved there, from level 0 up."""
-    directory.mkdir(exist_ok=True)
-    os.utime(directory)
-    grammar_file = directory / "grammar.json"
-    if not grammar_file.exists():
-        temporary = grammar_file.with_name(f"grammar.json.{os.getpid()}.tmp")
-        temporary.write_text(json.dumps(data), encoding="utf-8")
-        os.replace(temporary, grammar_file)
-    if not level_file(directory, 0).exists():
-        save_snapshot(level_file(directory, 0), grammar, [], summary(grammar, 0, 0, []))
-    levels = []
-    while level_file(directory, len(levels)).exists():
-        levels.append(read_summary(level_file(directory, len(levels))))
-    return levels
+def prepare_directory(directory, data):
+    """Initialize an empty temporary directory for a fresh run, starting at level 0."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    if any(directory.iterdir()):
+        raise ValueError("The run directory must be empty")
+    details = {"level": 0, "counts": {name: "0" for name in data["nonterminals"]},
+               "findings_count": 0}
+    _write_json(directory / "grammar.json", data)
+    _write_json(level_file(directory, 0), {"summary": details, "findings": []})
+    return [details]
 
 
-def prune_stale(cache, prefix):
-    """Remove the cache directories named prefix-... unused for a week."""
-    cutoff = time.time() - STALE_CACHE_SECONDS
-    for path in Path(cache).glob(f"{prefix}-*"):
-        try:
-            if path.is_dir() and path.stat().st_mtime < cutoff:
-                shutil.rmtree(path, ignore_errors=True)
-        except OSError:
-            continue
+def read_summary(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))["summary"]
+
+
+def read_findings(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))["findings"]
 
 
 def worker(args):
-    """Compute levels first..through of the grammar saved in the cache
-    directory, saving each level's snapshot as soon as it is done."""
+    """Compute a fresh grammar, writing only completed summaries and findings."""
     if args.exit_with_parent:
         def exit_with_parent():
             # The parent holds the other end of stdin, which closes when it
@@ -253,18 +221,12 @@ def worker(args):
     directory = Path(args.directory)
     catalog = build_grammar(json.loads((directory / "grammar.json").read_text(encoding="utf-8")))
     grammar = catalog.grammar
-    read_memory = memory_reader()
-
     def emit(**event):
         print(json.dumps(event), flush=True)
 
-    emit(phase="loading", level=args.first)
-    load_languages(level_file(directory, args.first - 1), grammar)
-    for level in range(args.first, args.through + 1):
+    for level in range(1, args.through + 1):
         emit(phase="computing", level=level)
-        started = time.monotonic()
         findings = grammar.step()
-        seconds = time.monotonic() - started
         emit(phase="saving", level=level)
         records = []
         for finding in findings:
@@ -273,29 +235,28 @@ def worker(args):
                 [left.symbols, right.symbols] for left, right in finding.factorizations
             ] if finding.factorizations else None
             records.append(record)
-        details = summary(grammar, seconds, read_memory(os.getpid()) or 0, records)
-        save_snapshot(level_file(directory, level), grammar, records, details)
+        details = summary(grammar, records)
+        _write_json(level_file(directory, level), {"summary": details, "findings": records})
+        grammar.findings.clear()
         emit(saved=True, level=grammar.iteration)
 
 
-def start_worker(directory, first, through):
-    """Start a worker on levels first..through of the grammar cached in
-    `directory`; return the process and the file its errors go to."""
+def start_worker(directory, through):
+    """Start a fresh worker; return its process and the file its errors go to."""
     # The worker runs in ROOT, so a relative directory is resolved here.
     command = [sys.executable, "-u", str(Path(__file__).resolve()), "--worker", "--exit-with-parent",
-               "--directory", str(Path(directory).resolve()), "--first", str(first), "--through", str(through)]
-    error_path = Path(directory) / f"level-{first}.stderr.txt"
-    errors = error_path.open("w")
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors,
-                               env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}, cwd=ROOT)
-    errors.close()
+               "--directory", str(Path(directory).resolve()), "--through", str(through)]
+    error_path = Path(directory) / "worker.stderr.txt"
+    with error_path.open("w", encoding="utf-8") as errors:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors,
+                                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}, cwd=ROOT)
     return process, error_path
 
 
 def follow_worker(process, read_memory, memory_limit, *, deadline=None,
-                  on_event=None, on_memory=None, cancelled=None):
+                  on_event=None, cancelled=None):
     """Watch a worker until it exits, passing each JSON line it prints to
-    on_event and each reading of its memory to on_memory. The worker is
+    on_event. The worker is
     killed, and the reason returned, when its memory reaches memory_limit()
     bytes ("memory"), one level takes LEVEL_SECONDS ("level time"),
     time.monotonic() passes `deadline` ("deadline"), or its memory can't be
@@ -328,8 +289,6 @@ def follow_worker(process, read_memory, memory_limit, *, deadline=None,
             memory = read_memory(process.pid)
             if memory is not None:
                 last_read = now
-                if on_memory is not None:
-                    on_memory(memory)
                 if memory >= memory_limit():
                     reason = reason or "memory"
             elif now - last_read > 2 and process.poll() is None:
@@ -346,14 +305,14 @@ def follow_worker(process, read_memory, memory_limit, *, deadline=None,
 
 
 def end_worker(process, directory):
-    """Make sure a worker has exited, and remove any snapshot it left half written."""
+    """Make sure a worker has exited, and remove any checkpoint it left half written."""
     if process.poll() is None:
         process.kill()
     process.wait()
     process.stdout.close()
     if process.stdin is not None:
         process.stdin.close()
-    for incomplete in Path(directory).glob(f"level-*.sqlite.{process.pid}.*.tmp*"):
+    for incomplete in Path(directory).glob(f"level-*.json.{process.pid}.*.tmp"):
         incomplete.unlink(missing_ok=True)
 
 
@@ -362,11 +321,10 @@ def main():
     parser.add_argument("--worker", action="store_true", required=True)
     parser.add_argument("--exit-with-parent", action="store_true")
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--first", type=int, required=True)
     parser.add_argument("--through", type=int, required=True)
     args = parser.parse_args()
-    if not 1 <= args.first <= args.through:
-        parser.error("worker levels must satisfy 1 <= first <= through")
+    if args.through < 1:
+        parser.error("worker level must be at least 1")
     return worker(args)
 
 

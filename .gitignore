@@ -1,6 +1,4 @@
 __pycache__/
 *.pyc
 .venv/
-.ambiguity_cache/
-.ui_cache/
 .DS_Store
