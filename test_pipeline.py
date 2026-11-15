@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import check_grammar
 from approximate_and_detect import approximate_and_detect
-from repair import repair_caccs, transform_caccs
+from repair import apply_cacc, recognize_caccs, repair_caccs, transform_caccs
 from parse import parse_grammar
 from report import build_report, prove_finding, render_text
 
@@ -57,7 +57,7 @@ def leaves(tree):
 def report_for(text, level=4, max_repairs=100):
     original = parse_grammar(text)
     repairs = repair_caccs(original, max_steps=max_repairs)
-    approximation = approximate_and_detect(repairs.grammar, level)
+    approximation = approximate_and_detect(repairs["grammar"], level)
     return build_report("example.bnf", original, repairs, approximation)
 
 
@@ -66,40 +66,51 @@ class NSFRepairTests(unittest.TestCase):
         original = parse_grammar(text)
         productions, lines = original.productions, original.production_lines
         repaired = repair_caccs(original)
-        self.assertIn(required_family, {change.rule_id for change in repaired.changes})
-        self.assertTrue(all(change.rule_id in NSF_FAMILIES for change in repaired.changes))
+        self.assertIn(required_family, {change["rule_id"] for change in repaired["changes"]})
+        self.assertTrue(all(change["rule_id"] in NSF_FAMILIES for change in repaired["changes"]))
         before = bounded_languages(original, length)
-        after = bounded_languages(repaired.grammar, length)
+        after = bounded_languages(repaired["grammar"], length)
         for name in original.nonterminals:
             self.assertEqual(before[name], after[name], name)
         self.assertEqual(original.productions, productions)
         self.assertEqual(original.production_lines, lines)
-        self.assertIsNot(repaired.grammar, original)
+        self.assertIsNot(repaired["grammar"], original)
         return repaired
 
     def test_mixed_recursion_preserves_both_recursive_directions(self):
         self.assert_language_preserved("A ::= b A\nA ::= A c\nA ::= d", "mixed_recursion")
 
-    def test_self_embedding_preserves_alternative_base_sentences(self):
-        self.assert_language_preserved("E ::= E + E\nE ::= n\nE ::= m", "self_embedding")
+    def test_self_embedding_preserves_a_nonterminal_base(self):
+        self.assert_language_preserved("E ::= E + E\nE ::= N\nN ::= n | m", "self_embedding")
 
     def test_duplicate_alternatives_preserve_empty_and_nonempty_sentences(self):
         self.assert_language_preserved("S ::=\nS ::=\nS ::= a\nS ::= a", "duplicate_union")
 
-    def test_optional_square_follows_nullable_aliases(self):
+    def test_optional_square_preserves_a_nonterminal_body(self):
         repaired = self.assert_language_preserved(
-            "S ::= N N\nN ::= M\nM ::= a\nM ::=", "optional_square")
-        self.assertEqual(bounded_languages(repaired.grammar, 3)["S"], {(), ("a",), ("a", "a")})
+            "S ::= N N\nN ::= M |\nM ::= a", "optional_square")
+        self.assertEqual(bounded_languages(repaired["grammar"], 3)["S"], {(), ("a",), ("a", "a")})
 
-    def test_optional_square_preserves_surrounding_tokens(self):
+    def test_optional_square_preserves_quoted_tokens(self):
         self.assert_language_preserved(
-            'S ::= "left side" N N "|"\nN ::= a\nN ::= b\nN ::=', "optional_square")
+            'S ::= N N\nN ::= "left side" "|" |', "optional_square")
+
+    def test_indirect_and_contextual_optional_forms_are_not_regex_templates(self):
+        examples = ["S ::= N N\nN ::= M\nM ::= a |",
+                    'S ::= "left side" N N "|"\nN ::= a |',
+                    "E ::= E + E | n | m"]
+        for text in examples:
+            with self.subTest(text=text):
+                original = parse_grammar(text)
+                repaired = repair_caccs(original)
+                self.assertFalse(repaired["changes"])
+                self.assertEqual(repaired["grammar"].productions, original.productions)
 
     def test_paper_example_reaches_the_reports_replacement_rules(self):
         repaired = self.assert_language_preserved(PAPER_GRAMMAR, "mixed_recursion", length=7)
-        self.assertEqual([change.rule_id for change in repaired.changes],
+        self.assertEqual([change["rule_id"] for change in repaired["changes"]],
                          ["mixed_recursion", "self_embedding"])
-        self.assertEqual(set(repaired.grammar.productions), {
+        self.assertEqual(set(repaired["grammar"].productions), {
             ("E", ("E", "+", "T")), ("E", ("T",)),
             ("T", ("T", "*", "F")), ("T", ("F",)),
             ("F", ("(", "E", ")")), ("F", ("n",)),
@@ -115,55 +126,101 @@ class NSFRepairTests(unittest.TestCase):
             with self.subTest(family=family):
                 original = parse_grammar(text)
                 repaired = repair_caccs(original)
-                self.assertEqual(repaired.grammar.productions, original.productions)
-                self.assertFalse(repaired.changes)
-                self.assertIn(family, {match.rule_id for match in repaired.remaining})
-                self.assertFalse(repaired.limit_reached)
-                self.assertFalse(repaired.stalled)
+                self.assertEqual(repaired["grammar"].productions, original.productions)
+                self.assertFalse(repaired["changes"])
+                self.assertIn(family, {match["rule_id"] for match in repaired["remaining"]})
+                self.assertFalse(repaired["limit_reached"])
+                self.assertFalse(repaired["stalled"])
 
     def test_existing_explicit_extended_rewrite_api_is_still_available(self):
         original = parse_grammar("S ::= S\nS ::= a")
         explicit = transform_caccs(original)
-        self.assertTrue(explicit.changes)
+        self.assertTrue(explicit["changes"])
         self.assertEqual(bounded_languages(original, 3)["S"],
-                         bounded_languages(explicit.grammar, 3)["S"])
+                         bounded_languages(explicit["grammar"], 3)["S"])
 
     def test_repair_limit_preserves_unfinished_work_and_remaining_evidence(self):
         original = parse_grammar("E ::= E + E\nE ::= n")
         result = repair_caccs(original, max_steps=0)
-        self.assertEqual(result.grammar.productions, original.productions)
-        self.assertFalse(result.changes)
-        self.assertTrue(result.limit_reached)
-        self.assertIn("self_embedding", {match.rule_id for match in result.remaining})
+        self.assertEqual(result["grammar"].productions, original.productions)
+        self.assertFalse(result["changes"])
+        self.assertTrue(result["limit_reached"])
+        self.assertIn("self_embedding", {match["rule_id"] for match in result["remaining"]})
 
     def test_recognition_extensions_do_not_exhaust_a_zero_repair_budget(self):
         result = repair_caccs(parse_grammar(DANGLING_GRAMMAR), max_steps=0)
-        self.assertTrue(result.remaining)
-        self.assertFalse(result.limit_reached)
-        self.assertFalse(result.stalled)
+        self.assertTrue(result["remaining"])
+        self.assertFalse(result["limit_reached"])
+        self.assertFalse(result["stalled"])
 
     def test_last_allowed_repair_can_finish_with_only_extensions_remaining(self):
         result = repair_caccs(parse_grammar("S ::= a\nS ::= a\nU ::= U\nU ::= b"), max_steps=1)
-        self.assertEqual([change.rule_id for change in result.changes], ["duplicate_union"])
-        self.assertTrue(result.remaining)
-        self.assertFalse(result.limit_reached)
-        self.assertFalse(result.stalled)
+        self.assertEqual([change["rule_id"] for change in result["changes"]], ["duplicate_union"])
+        self.assertTrue(result["remaining"])
+        self.assertFalse(result["limit_reached"])
+        self.assertFalse(result["stalled"])
 
     def test_repair_limit_reports_newly_exposed_nsf_work(self):
         result = repair_caccs(parse_grammar(PAPER_GRAMMAR), max_steps=1)
-        self.assertEqual([change.rule_id for change in result.changes], ["mixed_recursion"])
-        self.assertIn("self_embedding", {match.rule_id for match in result.remaining})
-        self.assertTrue(result.limit_reached)
+        self.assertEqual([change["rule_id"] for change in result["changes"]], ["mixed_recursion"])
+        self.assertIn("self_embedding", {match["rule_id"] for match in result["remaining"]})
+        self.assertTrue(result["limit_reached"])
         self.assertEqual(bounded_languages(parse_grammar(PAPER_GRAMMAR), 7)["E"],
-                         bounded_languages(result.grammar, 7)["E"])
+                         bounded_languages(result["grammar"], 7)["E"])
 
     def test_changed_rules_have_generated_locations_and_original_lines_survive(self):
         original = parse_grammar(PAPER_GRAMMAR)
-        repaired = repair_caccs(original).grammar
+        repaired = repair_caccs(original)["grammar"]
         lines = dict(zip(repaired.productions, repaired.production_lines))
         self.assertEqual(lines["F", ("(", "E", ")")], 4)
         self.assertEqual(lines["F", ("n",)], 5)
         self.assertEqual(lines["E", ("E", "+", "T")], 0)
+
+    def test_regex_metacharacters_and_quoted_delimiters_remain_literal(self):
+        self.assert_language_preserved(
+            '<A.+> ::= "p[?]" <A.+> | <A.+> "q|#//" | "two words"',
+            "mixed_recursion", length=4)
+        self.assert_language_preserved(
+            'S ::= S "| ::= # //" S | "say \\"hi\\""',
+            "self_embedding", length=4)
+
+    def test_quoted_owner_names_and_longer_names_do_not_match_recursion(self):
+        examples = ['S ::= "S + S" | n', 'S ::= "S" + "S" | n',
+                    'S ::= SS + SS | n\nSS ::= x',
+                    'S ::= "N N"\nN ::= a |']
+        for text in examples:
+            with self.subTest(text=text):
+                self.assertFalse(recognize_caccs(parse_grammar(text)))
+
+    def test_duplicate_match_uses_expanded_source_locations(self):
+        original = parse_grammar('# comment\n<S> ::= "x|#" | "x|#" // comment\n  | y\n')
+        match = next(m for m in recognize_caccs(original) if m["rule_id"] == "duplicate_union")
+        self.assertEqual(match["production_indices"], (0, 1))
+        self.assertEqual(original.production_lines, (2, 2, 3))
+        repaired = apply_cacc(original, match)
+        self.assertEqual(repaired.productions, (("<S>", ('"x|#"',)), ("<S>", ("y",))))
+        self.assertEqual(repaired.production_lines, (2, 3))
+
+    def test_applying_a_match_to_an_edited_grammar_is_rejected(self):
+        original = parse_grammar("S ::= a | a")
+        match = recognize_caccs(original)[0]
+        with self.assertRaises(ValueError):
+            apply_cacc(parse_grammar("S ::= b | b"), match)
+
+    def test_nullable_self_embedding_finishes_without_expanding_itself(self):
+        original = parse_grammar("N ::= N N |")
+        result = repair_caccs(original)
+        self.assertEqual([change["rule_id"] for change in result["changes"]], ["self_embedding"])
+        self.assertFalse(result["limit_reached"])
+        self.assertFalse(result["stalled"])
+        self.assertEqual(bounded_languages(result["grammar"], 3)["N"], {()})
+
+    def test_a_no_op_match_does_not_prevent_a_later_repair(self):
+        original = parse_grammar("S ::= A | B\nA ::= A A | A\nB ::= b | b")
+        result = repair_caccs(original)
+        self.assertEqual([change["rule_id"] for change in result["changes"]], ["duplicate_union"])
+        self.assertTrue(result["stalled"])
+        self.assertEqual(bounded_languages(original, 3), bounded_languages(result["grammar"], 3))
 
 
 class ApproximationTests(unittest.TestCase):
@@ -212,7 +269,7 @@ class ApproximationTests(unittest.TestCase):
 class ReportTests(unittest.TestCase):
     def test_verdict_describes_repaired_grammar_even_before_original_witness_depth(self):
         report = report_for("E ::= E + E\nE ::= n", level=1)
-        self.assertTrue(report["repairs"].changes)
+        self.assertTrue(report["repairs"]["changes"])
         self.assertEqual(report["verdict"], "none_found")
         self.assertEqual(report["exit_code"], 0)
         self.assertFalse(report["sites"])
@@ -240,18 +297,28 @@ class ReportTests(unittest.TestCase):
         self.assertIn("NO AMBIGUITY FOUND through level 5", ambiguities)
         self.assertIn("Deeper parse trees were not checked", ambiguities)
 
-    def test_remaining_structural_ambiguity_is_reported_at_shallow_depth(self):
+    def test_remaining_regex_template_does_not_prove_ambiguity_at_shallow_depth(self):
         report = report_for(DANGLING_GRAMMAR, level=1)
-        self.assertFalse(report["repairs"].changes)
+        self.assertFalse(report["repairs"]["changes"])
+        self.assertEqual(report["verdict"], "none_found")
+        self.assertEqual(report["exit_code"], 0)
+        self.assertFalse(report["sites"])
+        self.assertIn("dangling", render_text(report).lower())
+        self.assertIn("syntax matches, not ambiguity proofs", render_text(report))
+
+    def test_remaining_template_has_witnesses_when_searched_deeply_enough(self):
+        report = report_for(DANGLING_GRAMMAR, level=4)
         self.assertEqual(report["verdict"], "ambiguous")
         self.assertEqual(report["exit_code"], 1)
-        self.assertIn("dangling", render_text(report).lower())
+        self.assertTrue(report["sites"])
+        for site in report["sites"]:
+            self.assertEqual([leaves(tree) for tree in site["trees"]], [site["witness"]] * 2)
 
     def test_remaining_witnesses_use_repaired_rules_including_generated_helpers(self):
-        report = report_for("S ::= E\nE ::= E + E\nE ::= A\nE ::= B\nA ::= x\nB ::= x", level=5)
+        report = report_for("S ::= E\nE ::= E + E | E * F | A B\nF ::= f\nA ::= | x\nB ::= | x", level=5)
         self.assertEqual(report["verdict"], "ambiguous")
-        self.assertTrue(report["repairs"].changes)
-        self.assertIn("E_part", {site["nonterminal"] for site in report["sites"]})
+        self.assertTrue(report["repairs"]["changes"])
+        self.assertIn("T", {site["nonterminal"] for site in report["sites"]})
         self.assertTrue(any(all(report["cfg"].production_lines[rule] == 0 for rule in site["rules"])
                             for site in report["sites"]))
         for site in report["sites"]:
@@ -264,7 +331,7 @@ class ReportTests(unittest.TestCase):
         report = report_for("S ::= x\nU ::= U\nU ::= a", level=4)
         self.assertEqual(report["verdict"], "unambiguous")
         self.assertEqual(report["exit_code"], 0)
-        self.assertTrue(report["repairs"].remaining)
+        self.assertTrue(report["repairs"]["remaining"])
         self.assertTrue(all(not site["reachable"] for site in report["sites"]))
 
     def test_ambiguous_prefix_with_dead_suffix_does_not_change_verdict(self):
@@ -277,15 +344,18 @@ class ReportTests(unittest.TestCase):
         report = report_for("S ::= S", level=4)
         self.assertEqual(report["verdict"], "unambiguous")
         self.assertEqual(report["start_sentences"], 0)
-        self.assertFalse(report["repairs"].changes)
+        self.assertFalse(report["repairs"]["changes"])
         self.assertFalse(report["sites"])
         self.assertTrue(report["warnings"])
 
-    def test_unfinished_repairs_are_reported_without_losing_ambiguity_evidence(self):
+    def test_unfinished_repairs_are_reported_without_claiming_an_unseen_witness(self):
         report = report_for("E ::= E + E\nE ::= n", level=1, max_repairs=0)
-        self.assertEqual(report["verdict"], "ambiguous")
-        self.assertTrue(report["repairs"].limit_reached)
+        self.assertEqual(report["verdict"], "none_found")
+        self.assertTrue(report["repairs"]["limit_reached"])
         self.assertIn("limit", render_text(report).lower())
+        report = report_for("E ::= E + E\nE ::= n", level=4, max_repairs=0)
+        self.assertEqual(report["verdict"], "ambiguous")
+        self.assertTrue(report["sites"])
 
 
 class CommandTests(unittest.TestCase):

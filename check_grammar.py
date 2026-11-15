@@ -102,7 +102,7 @@ def main(argv=None):
             return UNREADABLE
         try:
             repairs = repair_caccs(original)
-            approximation = approximate_and_detect(repairs.grammar, args.level)
+            approximation = approximate_and_detect(repairs["grammar"], args.level)
             report = build_report(args.grammar, original, repairs, approximation)
             text = render_text(report)
         except (RuntimeError, ValueError, MemoryError) as error:

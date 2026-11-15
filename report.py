@@ -26,10 +26,8 @@ def build_report(path, original, repairs, approximation):
             "trees": _derivations(finding, site.first_level, approximation.catalog),
         })
 
-    # Remaining constructs belong to the repaired grammar. A removed construct
-    # describes the input and must not determine the repaired grammar's verdict.
-    ambiguous = (any(site["reachable"] for site in sites)
-                 or any(match.nonterminal in reached for match in repairs.remaining))
+    # Regex templates describe syntax; only a reachable witness proves ambiguity.
+    ambiguous = any(site["reachable"] for site in sites)
     verdict = "ambiguous" if ambiguous else "unambiguous" if approximation.saturated else "none_found"
     warnings = []
     if not approximation.start_sentences:
@@ -48,7 +46,7 @@ def build_report(path, original, repairs, approximation):
         "requested_level": approximation.requested_level, "level_reached": approximation.level_reached,
         "saturated": approximation.saturated, "start_sentences": approximation.start_sentences,
         "verdict": verdict, "exit_code": 1 if ambiguous else 0,
-        "sites": sites, "caccs": repairs.remaining, "reachable": reached, "warnings": warnings,
+        "sites": sites, "caccs": repairs["remaining"], "reachable": reached, "warnings": warnings,
     }
 
 
@@ -164,11 +162,11 @@ def render_text(report):
         lines.append(f"  {_rule_text(rule)}    ({_rule_location(original, index)})")
 
     lines += ["", "Repaired grammar:", f"  Start symbol: {cfg.start}"]
-    if not repairs.changes:
+    if not repairs["changes"]:
         lines.append("  Unchanged.")
-    if repairs.limit_reached:
-        lines.append("  The repair limit was reached; some NSF constructs remain.")
-    if repairs.stalled:
+    if repairs["limit_reached"]:
+        lines.append("  The repair limit was reached; some NSF templates remain.")
+    if repairs["stalled"]:
         lines.append("  Repairs stopped because no further supported rewrite made progress.")
     lines.append("")
     for index, rule in enumerate(cfg.productions):
@@ -188,24 +186,18 @@ def render_text(report):
         checked += " The start-symbol dependencies stopped growing."
     lines += _wrapped(checked, "  ", "  ")
 
-    if verdict == "ambiguous" and not any(site["reachable"] for site in report["sites"]):
-        lines += _wrapped(
-            "A structural check establishes ambiguity, but no witness trees reachable from the "
-            "start symbol were found through this level. Increase --level to search for its trees.",
-            "  ", "  ")
-    elif not report["sites"]:
+    if not report["sites"]:
         lines.append(f"  No witness found through level {level}.")
     for number, site in enumerate(report["sites"], 1):
         lines += ["", *_site_lines(number, site, cfg)]
 
+    if report["caccs"]:
+        lines += ["", "  Remaining CACC regex templates (syntax matches, not ambiguity proofs):"]
     for match in report["caccs"]:
-        title = match.rule_id.replace("_", " ").capitalize()
-        locations = "; ".join(_rule_location(cfg, index) for index in match.production_indices)
-        lines += ["", *_wrapped(f"Structural finding: {title} in {match.nonterminal} ({locations})", "  ", "  ")]
-        lines += _wrapped(match.reason, "    ", "    ")
-        if match.nonterminal not in report["reachable"]:
-            lines += _wrapped(f"No sentence of {cfg.start} is derived through {match.nonterminal}, "
-                              "so this does not make the checked grammar ambiguous.", "    ", "    ")
+        title = match["rule_id"].replace("_", " ").capitalize()
+        locations = "; ".join(_rule_location(cfg, index) for index in match["production_indices"])
+        lines += ["", *_wrapped(f"{title} in {match['nonterminal']} ({locations})", "  ", "  ")]
+        lines += _wrapped(match["reason"], "    ", "    ")
     for warning in report["warnings"]:
         lines += ["", *_wrapped(warning, "  Note: ", "        ")]
     return "\n".join(lines) + "\n"
