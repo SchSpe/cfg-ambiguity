@@ -1,8 +1,8 @@
 """Build verified evidence and format the result of the four-stage checker.
 
 All findings and rule numbers refer to the grammar after NSF repairs. The
-report retains the input grammar and the rewrite history so those rules can
-be read in context. This module never repairs or approximates a grammar.
+report presents the input grammar, the repaired grammar, and the ambiguity
+witnesses with their parse trees. This module never repairs or approximates a grammar.
 """
 
 from functools import lru_cache
@@ -83,16 +83,6 @@ EMPTY = "(empty)"
 TEXT_WIDTH = 79
 
 
-def _plural(number, singular, plural=None):
-    return f"{number:,} {singular if number == 1 else plural or singular + 's'}"
-
-
-def _amount(count):
-    """Keep very large sentence counts readable."""
-    digits = str(count)
-    return f"{count:,}" if len(digits) <= 15 else f"about {digits[0]}.{digits[1:3]} x 10^{len(digits) - 1}"
-
-
 def _sentence(tokens):
     return " ".join(tokens) if tokens else EMPTY
 
@@ -164,88 +154,61 @@ def _site_lines(number, site, cfg):
 
 
 def render_text(report):
-    """Present the repair history, checked grammar, search, and remaining evidence."""
-    cfg, name = report["cfg"], report["file"]
+    """Show the input grammar, repaired grammar, and ambiguities with trees."""
+    original, cfg = report["original"], report["cfg"]
     repairs = report["repairs"]
-    target = f"the repaired grammar from {name}" if repairs.changes else name
-    verdict, level = report["verdict"], report["level_reached"]
-    reachable_sites = [site for site in report["sites"] if site["reachable"]]
-    if verdict == "ambiguous":
-        lines = [f"AMBIGUOUS: {target}"]
-        if not reachable_sites:
-            lines += _wrapped(
-                "A remaining certain ambiguity-causing construct establishes ambiguity. "
-                "The depth-limited search has not found a witness reachable from the start symbol; "
-                "increase --level to search for its parse trees.", "", "")
-    elif verdict == "unambiguous":
-        lines = [f"UNAMBIGUOUS: {target} is proved unambiguous"]
-    else:
-        lines = [f"NO AMBIGUITY FOUND in {target} through level {level}",
-                 "Deeper parse trees were not checked; a higher --level looks further."]
+    level = report["level_reached"]
 
-    original = report["original"]
-    lines += ["", f"Input: {name}",
-              f"       {_plural(len(original.productions), 'rule')}, start symbol {original.start}",
-              "", *_repair_lines(repairs), "", "Grammar checked:"]
-    if repairs.changes:
-        lines.append("  The verdict, witnesses, and rule numbers below refer to this repaired grammar.")
-    else:
-        lines.append("  The input grammar was unchanged.")
-    for index, rule in enumerate(cfg.productions):
-        lines.append(f"  {_rule_text(rule)}    ({_rule_location(cfg, index)})")
+    lines = ["Input grammar:", f"  File: {report['file']}", f"  Start symbol: {original.start}", ""]
+    for index, rule in enumerate(original.productions):
+        lines.append(f"  {_rule_text(rule)}    ({_rule_location(original, index)})")
 
-    lines += ["", "Approximation and ambiguity detection:",
-              f"  {_plural(len(cfg.productions), 'rule')}, "
-              f"{_plural(len(cfg.nonterminals), 'nonterminal')}, "
-              f"{_plural(len(cfg.terminals), 'terminal')}, start symbol {cfg.start}"]
-    checked = f"Checked through level {level} (requested {report['requested_level']})."
-    if report["saturated"]:
-        checked += " The start-symbol dependencies stopped growing; no later level adds sentences."
-    else:
-        checked += f" This covers parse trees of height {level} or less."
-    lines += _wrapped(checked, "  ", "  ")
-    lines.append(f"  Sentences: {_amount(report['start_sentences'])} of {cfg.start} at level {level}")
-
-    lines += ["", "Ambiguity witnesses:"]
-    if not report["sites"]:
-        lines.append("  None found through the checked level.")
-    for number, site in enumerate(report["sites"], 1):
-        lines += ["", *_site_lines(number, site, cfg)]
-
-    lines += ["", "Remaining recognized CACCs:"]
-    if not report["caccs"]:
-        lines.append("  None recognized. This alone does not prove unambiguity.")
-    for match in report["caccs"]:
-        title = match.rule_id.replace("_", " ").capitalize()
-        locations = "; ".join(_rule_location(cfg, index) for index in match.production_indices)
-        lines += ["", *_wrapped(f"{title} in {match.nonterminal} ({locations})", "  ", "  ")]
-        lines += _wrapped(match.reason, "    ", "    ")
-        lines += _wrapped(f"Source: {match.source}.", "    ", "    ")
-        if match.nonterminal not in report["reachable"]:
-            lines += _wrapped(f"No sentence of {cfg.start} is derived through {match.nonterminal}, "
-                              "so this does not make the checked grammar ambiguous.", "    ", "    ")
-    if report["warnings"]:
-        lines += ["", "Notes:"]
-        for warning in report["warnings"]:
-            lines += _wrapped(warning, "- ", "  ")
-    return "\n".join(lines) + "\n"
-
-
-def _repair_lines(repairs):
-    lines = ["NSF CACC repairs:"]
+    lines += ["", "Repaired grammar:", f"  Start symbol: {cfg.start}"]
     if not repairs.changes:
-        lines.append("  No NSF repair was applied.")
-    for number, change in enumerate(repairs.changes, 1):
-        title = change.rule_id.replace("_", " ").capitalize()
-        lines += [f"  {number}. {title} in {change.nonterminal}", "     Before:"]
-        lines += [f"       {rule}" for rule in change.before.splitlines()]
-        lines.append("     After:")
-        lines += [f"       {rule}" for rule in change.after.splitlines()]
+        lines.append("  Unchanged.")
     if repairs.limit_reached:
         lines.append("  The repair limit was reached; some NSF constructs remain.")
     if repairs.stalled:
         lines.append("  Repairs stopped because no further supported rewrite made progress.")
-    return lines
+    lines.append("")
+    for index, rule in enumerate(cfg.productions):
+        lines.append(f"  {_rule_text(rule)}    ({_rule_location(cfg, index)})")
+
+    lines += ["", "Ambiguities:"]
+    verdict = report["verdict"]
+    if verdict == "ambiguous":
+        lines.append("  AMBIGUOUS: the repaired grammar has ambiguity reachable from its start symbol.")
+    elif verdict == "unambiguous":
+        lines.append("  UNAMBIGUOUS: the repaired grammar is proved unambiguous.")
+    else:
+        lines.append(f"  NO AMBIGUITY FOUND through level {level}.")
+        lines.append("  Deeper parse trees were not checked; a higher --level looks further.")
+    checked = f"Checked through level {level} (requested {report['requested_level']})."
+    if report["saturated"]:
+        checked += " The start-symbol dependencies stopped growing."
+    lines += _wrapped(checked, "  ", "  ")
+
+    if verdict == "ambiguous" and not any(site["reachable"] for site in report["sites"]):
+        lines += _wrapped(
+            "A structural check establishes ambiguity, but no witness trees reachable from the "
+            "start symbol were found through this level. Increase --level to search for its trees.",
+            "  ", "  ")
+    elif not report["sites"]:
+        lines.append(f"  No witness found through level {level}.")
+    for number, site in enumerate(report["sites"], 1):
+        lines += ["", *_site_lines(number, site, cfg)]
+
+    for match in report["caccs"]:
+        title = match.rule_id.replace("_", " ").capitalize()
+        locations = "; ".join(_rule_location(cfg, index) for index in match.production_indices)
+        lines += ["", *_wrapped(f"Structural finding: {title} in {match.nonterminal} ({locations})", "  ", "  ")]
+        lines += _wrapped(match.reason, "    ", "    ")
+        if match.nonterminal not in report["reachable"]:
+            lines += _wrapped(f"No sentence of {cfg.start} is derived through {match.nonterminal}, "
+                              "so this does not make the checked grammar ambiguous.", "    ", "    ")
+    for warning in report["warnings"]:
+        lines += ["", *_wrapped(warning, "  Note: ", "        ")]
+    return "\n".join(lines) + "\n"
 
 
 # ----- Witness reconstruction -----------------------------------------------

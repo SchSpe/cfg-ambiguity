@@ -223,17 +223,22 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report["exit_code"], 0)
         self.assertFalse(report["sites"])
 
-    def test_report_contains_repairs_and_complete_analyzed_grammar(self):
+    def test_report_lists_input_then_repaired_grammar_then_ambiguities(self):
         report = report_for(PAPER_GRAMMAR, level=5)
         text = render_text(report)
         self.assertEqual(report["verdict"], "none_found")
-        self.assertIn("E ::= E + E", text)
+        self.assertTrue(text.startswith("Input grammar:"))
+        input_part, rest = text.split("Repaired grammar:", 1)
+        repaired_part, ambiguities = rest.split("Ambiguities:", 1)
+        for lhs, rhs in report["original"].productions:
+            self.assertIn(f"{lhs} ::= {' '.join(rhs)}", input_part)
         for lhs, rhs in report["cfg"].productions:
-            self.assertIn(f"{lhs} ::= {' '.join(rhs)}", text)
-        for family in ("mixed recursion", "self embedding"):
-            self.assertIn(family, text.lower().replace("_", " "))
-        self.assertIn("generated", text.lower())
+            self.assertIn(f"{lhs} ::= {' '.join(rhs)}", repaired_part)
+        self.assertNotIn("E ::= E + E", repaired_part)
+        self.assertIn("generated", repaired_part.lower())
         self.assertNotIn("line 0", text.lower())
+        self.assertIn("NO AMBIGUITY FOUND through level 5", ambiguities)
+        self.assertIn("Deeper parse trees were not checked", ambiguities)
 
     def test_remaining_structural_ambiguity_is_reported_at_shallow_depth(self):
         report = report_for(DANGLING_GRAMMAR, level=1)

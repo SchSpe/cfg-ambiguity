@@ -1,0 +1,64 @@
+Input grammar:
+  File: examples/sample.bnf
+  Start symbol: S
+
+  S ::= E    (rule 1, source line 1)
+  S ::= A    (rule 2, source line 2)
+  S ::= B    (rule 3, source line 3)
+  S ::= C    (rule 4, source line 4)
+  E ::= E + E    (rule 5, source line 5)
+  E ::= n    (rule 6, source line 6)
+  A ::= x    (rule 7, source line 7)
+  B ::= x    (rule 8, source line 8)
+  C ::= L R    (rule 9, source line 9)
+  L ::= a    (rule 10, source line 10)
+  L ::= a a    (rule 11, source line 11)
+  R ::= a    (rule 12, source line 12)
+  R ::= a a    (rule 13, source line 13)
+
+Repaired grammar:
+  Start symbol: S
+
+  S ::= E    (rule 1, source line 1)
+  S ::= A    (rule 2, source line 2)
+  S ::= B    (rule 3, source line 3)
+  S ::= C    (rule 4, source line 4)
+  E ::= E + n    (rule 5, generated)
+  E ::= n    (rule 6, source line 6)
+  A ::= x    (rule 7, source line 7)
+  B ::= x    (rule 8, source line 8)
+  C ::= L R    (rule 9, source line 9)
+  L ::= a    (rule 10, source line 10)
+  L ::= a a    (rule 11, source line 11)
+  R ::= a    (rule 12, source line 12)
+  R ::= a a    (rule 13, source line 13)
+
+Ambiguities:
+  AMBIGUOUS: the repaired grammar has ambiguity reachable from its start symbol.
+  Checked through level 6 (requested 6).
+
+1. Union ambiguity in S, first seen at level 2
+
+   Two rules derive the same sentence:
+     S ::= A    (rule 2, source line 2)
+     S ::= B    (rule 3, source line 3)
+   Witness: x
+
+   Parse tree 1: S ::= A    Parse tree 2: S ::= B
+   S                        S
+   `-- A                    `-- B
+       `-- x                    `-- x
+
+2. Concatenation ambiguity in C, first seen at level 2
+
+   One rule divides the same sentence in two ways:
+     C ::= L R    (rule 9, source line 9)
+   Witness: a a a
+
+   Parse tree 1: a | a a    Parse tree 2: a a | a
+   C                        C
+   |-- L                    |-- L
+   |   `-- a                |   |-- a
+   `-- R                    |   `-- a
+       |-- a                `-- R
+       `-- a                    `-- a

@@ -1,0 +1,13 @@
+S ::= E
+S ::= A
+S ::= B
+S ::= C
+E ::= E + E
+E ::= n
+A ::= x
+B ::= x
+C ::= L R
+L ::= a
+L ::= a a
+R ::= a
+R ::= a a

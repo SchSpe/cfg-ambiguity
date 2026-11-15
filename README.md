@@ -113,8 +113,14 @@ proved unambiguous only when the relevant languages stop growing and no
 reachable ambiguity remains. Removing the recognized NSF constructs alone
 does not establish unambiguity.
 
-The report includes the before-and-after repair history, the full grammar that
-was checked, remaining CACCs, and two verified trees for each reported witness.
+The report has three sections, in order:
+
+1. **Input grammar:** all productions supplied by the user.
+2. **Repaired grammar:** all productions after applying the NSF repairs.
+3. **Ambiguities:** the verdict and checked depth, followed by each witness and
+   its two verified parse trees. Remaining structural findings are also noted,
+   including when the search has not yet reached their witness trees.
+
 Unchanged rules keep their source lines; changed and newly introduced rules are
 labeled `generated`. Those labels distinguish input locations from generated
 rules, whose internal source-line value is 0.
